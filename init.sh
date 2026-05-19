@@ -11,6 +11,7 @@ warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 fail() { printf "${RED}[FAIL]${NC} %s\n" "$1"; }
 
 EXIT_CODE=0
+PNPM_RUNNER="./scripts/pnpmw.sh"
 
 echo "── 1. Verificando entorno ─────────────────────────────"
 if ! command -v node >/dev/null 2>&1; then
@@ -19,11 +20,16 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 ok "node -> $(node --version)"
 
-if ! command -v pnpm >/dev/null 2>&1; then
-  fail "pnpm no está instalado"
+if [ ! -x "$PNPM_RUNNER" ]; then
+  fail "Falta runner ejecutable: $PNPM_RUNNER"
   exit 1
 fi
-ok "pnpm -> $(pnpm --version)"
+
+if ! PNPM_VERSION="$("$PNPM_RUNNER" --version 2>/tmp/hermess_pnpm_error.log)"; then
+  fail "$(cat /tmp/hermess_pnpm_error.log)"
+  exit 1
+fi
+ok "pnpm -> ${PNPM_VERSION}"
 
 echo ""
 echo "── 2. Verificando archivos base del arnés ─────────────"
@@ -121,21 +127,21 @@ fi
 
 echo ""
 echo "── 4. Verificación ejecutable ─────────────────────────"
-if pnpm typecheck; then
+if "$PNPM_RUNNER" typecheck; then
   ok "Typecheck verde"
 else
   fail "Typecheck falló"
   EXIT_CODE=1
 fi
 
-if pnpm build; then
+if "$PNPM_RUNNER" build; then
   ok "Build verde"
 else
   fail "Build falló"
   EXIT_CODE=1
 fi
 
-if pnpm smoke; then
+if "$PNPM_RUNNER" smoke; then
   ok "Smoke verde"
 else
   fail "Smoke falló"

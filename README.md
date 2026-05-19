@@ -8,6 +8,33 @@ Servidor MCP local que expone herramientas seguras sobre cualquier repositorio. 
 npm install -g arufheim-hermess
 ```
 
+## Desarrollo del repo
+
+Este repo usa `pnpm` como package manager de desarrollo.
+
+Si `pnpm` no está instalado en tu máquina, puedes bootstrapearlo de cualquiera
+de estas formas:
+
+```bash
+corepack enable
+corepack prepare pnpm@10.33.4 --activate
+```
+
+o:
+
+```bash
+npm install -g pnpm
+```
+
+o:
+
+```bash
+yarn global add pnpm
+```
+
+`npm` y `yarn` sirven para instalar `pnpm`, pero no reemplazan el lockfile ni
+el flujo de verificación de este repo.
+
 ## Configuración inicial
 
 Después de instalar, configura los clientes MCP de forma global:

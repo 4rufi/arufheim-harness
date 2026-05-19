@@ -2,9 +2,9 @@
 
 Un cambio en Hermess está realmente listo solo si:
 
-- `pnpm typecheck` pasa
-- `pnpm build` pasa
-- `pnpm smoke` pasa
+- `./scripts/pnpmw.sh typecheck` pasa
+- `./scripts/pnpmw.sh build` pasa
+- `./scripts/pnpmw.sh smoke` pasa
 - El servidor sigue arrancando por `stdio`
 - No se añadió logging funcional a `stdout`
 - `run_command` sigue protegido por allowlist

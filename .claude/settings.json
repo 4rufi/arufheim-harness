@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pnpm typecheck 2>&1 | tail -20",
+            "command": "./scripts/pnpmw.sh typecheck 2>&1 | tail -20",
             "description": "Tras editar, ejecuta typecheck y muestra el resumen."
           }
         ]
@@ -26,4 +26,3 @@
     ]
   }
 }
-

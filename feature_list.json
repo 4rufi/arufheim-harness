@@ -64,6 +64,19 @@
         "init.sh exige evidencia SDD para features cerradas"
       ],
       "status": "done"
+    },
+    {
+      "id": 5,
+      "name": "bootstrap_pnpm_runner",
+      "title": "Bootstrap portable para pnpm",
+      "description": "Permite correr el arnés usando `pnpm` desde PATH o `corepack pnpm`, y documenta el bootstrap vía npm/yarn cuando `pnpm` falta.",
+      "acceptance": [
+        "`init.sh` usa `pnpm` desde PATH si existe",
+        "`init.sh` usa `corepack pnpm` si `pnpm` no está en PATH y Corepack sí",
+        "Si no hay `pnpm`, el error explica cómo instalarlo con `npm` o `yarn`",
+        "La documentación del repo refleja el flujo de bootstrap"
+      ],
+      "status": "done"
     }
   ]
 }

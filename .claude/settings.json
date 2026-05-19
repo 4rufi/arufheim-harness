@@ -1,0 +1,29 @@
+{
+  "$schema_comment": "Hooks para forzar verificación básica del harness.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm typecheck 2>&1 | tail -20",
+            "description": "Tras editar, ejecuta typecheck y muestra el resumen."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./init.sh > /tmp/hermess_init.log 2>&1 && echo '[hermess] init.sh OK' || (echo '[hermess] init.sh FALLÓ' && tail -40 /tmp/hermess_init.log)",
+            "description": "Antes de cerrar, fuerza la verificación completa."
+          }
+        ]
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,69 @@
+{
+  "project": "hermess",
+  "description": "MCP server local para tools seguras sobre repositorios, envuelto en un harness SDD ligero.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_green_init_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "sdd_required_when": "feature has \"sdd\": true",
+    "scope_field": "opcional; usado por scoper para filtrar features por proyecto"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "config_path_override",
+      "title": "Carga robusta de config para clientes stdio",
+      "description": "Permite fijar la config vía --config o HERMESS_CONFIG en vez de depender del cwd del host.",
+      "acceptance": [
+        "`node dist/index.js --config /abs/hermess.config.json` usa esa config",
+        "`HERMESS_CONFIG=/abs/hermess.config.json node dist/index.js` usa esa config",
+        "Si no se pasa override, cae a ./hermess.config.json relativo al cwd",
+        "La ruta efectiva aparece en stderr y en el log de arranque"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "repo_resources",
+      "title": "Exponer recursos MCP de solo lectura del repo",
+      "description": "Añadir resources para metadata y logs de Hermess sin tocar las tools existentes.",
+      "acceptance": [
+        "Existe un resource para leer hermess.config.json resuelto",
+        "Existe un resource para leer .hermess/logs/hermess.jsonl",
+        "La lectura respeta repoPath y archivos existentes",
+        "README documenta el uso"
+      ],
+      "sdd": true,
+      "status": "done"
+    },
+    {
+      "id": 3,
+      "name": "safe_write_file",
+      "title": "Tool write_file segura",
+      "description": "Escritura de archivos dentro de repoPath con guardrails explícitos y logging.",
+      "acceptance": [
+        "La tool solo acepta rutas dentro de repoPath",
+        "Puede crear o reemplazar archivos UTF-8 de texto",
+        "Toda operación queda registrada en .hermess/logs",
+        "README y docs describen su riesgo y restricciones"
+      ],
+      "sdd": true,
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "name": "hardening_followups",
+      "title": "Correcciones de seguridad y contrato post-review",
+      "description": "Cierra hallazgos sobre boundary de repoPath, globbing, parser JSONC, semántica de errores MCP y enforcement del arnés.",
+      "acceptance": [
+        "Las lecturas bloquean escapes por symlink fuera de repoPath",
+        "list_files rechaza globs absolutos o con ../ y no sigue symlinks externos",
+        "run_command devuelve error MCP cuando el comando falla",
+        "hermess://config/raw responde de forma estable aunque no exista hermess.config.json",
+        "init.sh exige evidencia SDD para features cerradas"
+      ],
+      "status": "done"
+    }
+  ]
+}

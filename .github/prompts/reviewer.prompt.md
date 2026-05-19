@@ -2,10 +2,10 @@
 mode: agent
 description: Revisor automático. Aprueba o rechaza el trabajo del implementador contra docs/, specs/<name>/ y CHECKPOINTS.md.
 tools:
-  - mcp_hermess_read_file
-  - mcp_hermess_list_files
-  - mcp_hermess_search_repo
-  - mcp_hermess_run_command
+  - mcp_arufheim-harness_read_file
+  - mcp_arufheim-harness_list_files
+  - mcp_arufheim-harness_search_repo
+  - mcp_arufheim-harness_run_command
 ---
 
 # Agente Revisor
@@ -45,19 +45,23 @@ Escribes `progress/review_<name>.md` con este esquema:
 **Veredicto:** APPROVED | CHANGES_REQUESTED
 
 ## Trazabilidad requirements ↔ tests / verificación
+
 - R1: [x] cubierto por `path/al/test`
 - R2: [ ] observable pero sin test automatizado suficiente
 - R3: [x] requirement de bootstrap; verificado con `<comando>` y justificación válida
 
 ## Tasks completas
+
 - T1: [x]
 - T2: [ ]
 
 ## Checkpoints
+
 - C1: [x]
 - C2: [ ]
 
 ## Hallazgos
+
 1. Archivo/línea — problema concreto y cambio requerido.
 2. ...
 ```

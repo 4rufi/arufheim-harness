@@ -1,0 +1,190 @@
+{"timestamp":"2026-05-18T22:41:03.966Z","eventType":"server_started","payload":{"repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-18T22:41:04.763Z","eventType":"server_stopped","payload":{"signal":"SIGTERM"}}
+{"timestamp":"2026-05-18T22:43:07.183Z","eventType":"server_started","payload":{"repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-18T22:52:26.272Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-18T22:52:26.281Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-18T22:52:27.567Z","eventType":"server_started","payload":{"repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-18T22:52:39.591Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-18T22:52:39.592Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-18T22:52:55.000Z","eventType":"server_started","payload":{"repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:52:11.385Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:52:11.398Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:52:12.747Z","eventType":"server_started","payload":{"repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:53:01.097Z","eventType":"server_started","payload":{"repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:53:22.085Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:54:31.048Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:54:31.064Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:54:32.411Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:54:36.527Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:54:36.528Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:54:38.257Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:55:11.381Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:55:11.391Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:55:58.072Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T00:56:27.156Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:56:27.161Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T00:57:49.116Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:07:26.364Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T01:07:26.377Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T01:10:13.086Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:17:35.033Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:24:41.153Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:25:08.130Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:25:08.157Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T01:25:08.157Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0,"exists":true}}
+{"timestamp":"2026-05-19T01:25:08.161Z","eventType":"resource_read_started","payload":{"resource":"main_log","uri":"hermess://logs/main"}}
+{"timestamp":"2026-05-19T01:25:08.161Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true}}
+{"timestamp":"2026-05-19T01:26:47.347Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T01:26:47.365Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T01:26:54.070Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:28:20.671Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T01:28:20.676Z","eventType":"server_stopped","payload":{"signal":"SIGINT"}}
+{"timestamp":"2026-05-19T01:29:45.317Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:29:45.332Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T01:29:45.332Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0,"exists":true}}
+{"timestamp":"2026-05-19T01:29:45.333Z","eventType":"resource_read_started","payload":{"resource":"main_log","uri":"hermess://logs/main"}}
+{"timestamp":"2026-05-19T01:29:45.333Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true}}
+{"timestamp":"2026-05-19T01:32:49.614Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/New project 3/hermess.config.json","repoPath":"/Users/andyau/Documents/New project 3","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:44:10.043Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:45:39.894Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T01:53:06.865Z","eventType":"tool_call_started","payload":{"tool":"search_repo","input":{"query":"from \"zod\""}}}
+{"timestamp":"2026-05-19T01:53:06.951Z","eventType":"tool_call_finished","payload":{"tool":"search_repo","ok":true,"durationMs":86,"matches":5}}
+{"timestamp":"2026-05-19T02:04:21.714Z","eventType":"tool_call_started","payload":{"tool":"list_files","input":{"pattern":".claude/**"}}}
+{"timestamp":"2026-05-19T02:04:21.739Z","eventType":"tool_call_finished","payload":{"tool":"list_files","ok":true,"durationMs":25,"total":5}}
+{"timestamp":"2026-05-19T02:04:22.518Z","eventType":"tool_call_started","payload":{"tool":"list_files","input":{"pattern":"progress/**"}}}
+{"timestamp":"2026-05-19T02:04:22.520Z","eventType":"tool_call_finished","payload":{"tool":"list_files","ok":true,"durationMs":2,"total":2}}
+{"timestamp":"2026-05-19T02:04:30.373Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":".claude/settings.json"}}}
+{"timestamp":"2026-05-19T02:04:30.376Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":3,"sizeBytes":766}}
+{"timestamp":"2026-05-19T02:04:33.047Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":".claude/agents/implementer.md"}}}
+{"timestamp":"2026-05-19T02:04:33.049Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":2,"sizeBytes":349}}
+{"timestamp":"2026-05-19T02:04:37.015Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":".claude/agents/reviewer.md"}}}
+{"timestamp":"2026-05-19T02:04:37.018Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":3,"sizeBytes":351}}
+{"timestamp":"2026-05-19T02:04:41.041Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":".claude/agents/leader.md"}}}
+{"timestamp":"2026-05-19T02:04:41.044Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":3,"sizeBytes":619}}
+{"timestamp":"2026-05-19T02:04:41.052Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":"CHECKPOINTS.md"}}}
+{"timestamp":"2026-05-19T02:04:41.049Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":".claude/agents/spec_author.md"}}}
+{"timestamp":"2026-05-19T02:04:41.055Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":6,"sizeBytes":383}}
+{"timestamp":"2026-05-19T02:04:41.055Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":3,"sizeBytes":473}}
+{"timestamp":"2026-05-19T02:08:07.887Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":"feature_list.json"}}}
+{"timestamp":"2026-05-19T02:08:07.892Z","eventType":"tool_call_started","payload":{"tool":"read_file","input":{"path":"AGENTS.md"}}}
+{"timestamp":"2026-05-19T02:08:07.905Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":13,"sizeBytes":2259}}
+{"timestamp":"2026-05-19T02:08:07.905Z","eventType":"tool_call_finished","payload":{"tool":"read_file","ok":true,"durationMs":18,"sizeBytes":2101}}
+{"timestamp":"2026-05-19T02:31:09.283Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T02:48:24.947Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T02:49:41.478Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T03:57:48.263Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T03:57:48.281Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T03:57:48.282Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T03:57:48.283Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:04:51.266Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:04:51.282Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:04:51.283Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:04:51.284Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:12:16.275Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:12:16.292Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:12:16.293Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:12:16.293Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:12:16.294Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:12:16.294Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:12:23.190Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:12:23.205Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:12:23.206Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:12:23.206Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:12:23.206Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:12:23.207Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:25:08.684Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:25:08.701Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:25:08.702Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:25:08.703Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:25:08.703Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:25:08.704Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:29:01.694Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:29:01.855Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:29:01.874Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":19}}
+{"timestamp":"2026-05-19T04:29:01.921Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:29:01.924Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":3}}
+{"timestamp":"2026-05-19T04:29:01.931Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":2,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:33:37.640Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:33:37.664Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:33:37.664Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:33:37.665Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:33:37.665Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:33:37.667Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:35:43.506Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:35:43.525Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:35:43.526Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:35:43.527Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:35:43.527Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:35:43.529Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:37:44.763Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:37:44.781Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:37:44.782Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:37:44.783Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:37:44.783Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:37:44.784Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:39:26.806Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:39:26.821Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:39:26.822Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:39:26.823Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:39:26.823Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:39:26.824Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:51:43.017Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:51:43.034Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:51:43.035Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:51:43.036Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:51:43.036Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:51:43.037Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:53:53.670Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:53:53.689Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:53:53.690Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:53:53.691Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:53:53.691Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T04:53:53.692Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T04:59:40.366Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T04:59:40.413Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T04:59:40.414Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:59:40.427Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T04:59:40.428Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T04:59:40.431Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T05:00:05.931Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T05:00:05.951Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T05:00:05.952Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T05:00:05.952Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T05:00:05.953Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T05:00:05.954Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T05:01:19.417Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T05:01:19.674Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T05:01:19.681Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":7}}
+{"timestamp":"2026-05-19T05:01:19.713Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T05:01:19.714Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T05:01:19.751Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":33,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T05:04:32.242Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T05:04:32.260Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T05:04:32.261Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T05:04:32.261Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T05:04:32.261Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T05:04:32.262Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T05:04:47.931Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T05:04:47.951Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T05:04:47.952Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T05:04:47.953Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T05:04:47.953Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T05:04:47.955Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T14:13:06.268Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T14:13:06.284Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T14:13:06.285Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T14:13:06.286Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T14:13:06.286Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T14:13:06.287Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T14:13:30.397Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T14:13:30.415Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T14:13:30.415Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T14:13:30.416Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T14:13:30.416Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T14:13:30.417Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":0,"exists":true,"truncatedToBytes":131072}}
+{"timestamp":"2026-05-19T14:56:38.509Z","eventType":"server_started","payload":{"configPath":"/Users/andyau/Documents/hermess/hermess.config.json","repoPath":"/Users/andyau/Documents/hermess","allowedCommands":["pnpm test","npm test","yarn test","ls","pwd"],"ignored":["node_modules/**",".git/**","dist/**",".hermess/**"]}}
+{"timestamp":"2026-05-19T14:56:38.523Z","eventType":"resource_read_started","payload":{"resource":"raw_config","uri":"hermess://config/raw"}}
+{"timestamp":"2026-05-19T14:56:38.524Z","eventType":"resource_read_finished","payload":{"resource":"raw_config","uri":"hermess://config/raw","ok":true,"durationMs":1}}
+{"timestamp":"2026-05-19T14:56:38.525Z","eventType":"resource_read_started","payload":{"resource":"resolved_config","uri":"hermess://config/resolved"}}
+{"timestamp":"2026-05-19T14:56:38.525Z","eventType":"resource_read_finished","payload":{"resource":"resolved_config","uri":"hermess://config/resolved","ok":true,"durationMs":0}}
+{"timestamp":"2026-05-19T14:56:38.526Z","eventType":"resource_read_finished","payload":{"resource":"main_log","uri":"hermess://logs/main","ok":true,"durationMs":1,"exists":true,"truncatedToBytes":131072}}

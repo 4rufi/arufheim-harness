@@ -1,5 +1,5 @@
 {
-  "project": "hermess",
+  "project": "harness",
   "description": "MCP server local para tools seguras sobre repositorios, envuelto en un harness SDD ligero.",
   "rules": {
     "one_feature_at_a_time": true,
@@ -14,11 +14,11 @@
       "id": 1,
       "name": "config_path_override",
       "title": "Carga robusta de config para clientes stdio",
-      "description": "Permite fijar la config vía --config o HERMESS_CONFIG en vez de depender del cwd del host.",
+      "description": "Permite fijar la config vía --config o harness_CONFIG en vez de depender del cwd del host.",
       "acceptance": [
-        "`node dist/index.js --config /abs/hermess.config.json` usa esa config",
-        "`HERMESS_CONFIG=/abs/hermess.config.json node dist/index.js` usa esa config",
-        "Si no se pasa override, cae a ./hermess.config.json relativo al cwd",
+        "`node dist/index.js --config /abs/harness.config.json` usa esa config",
+        "`harness_CONFIG=/abs/harness.config.json node dist/index.js` usa esa config",
+        "Si no se pasa override, cae a ./harness.config.json relativo al cwd",
         "La ruta efectiva aparece en stderr y en el log de arranque"
       ],
       "status": "done"
@@ -27,10 +27,10 @@
       "id": 2,
       "name": "repo_resources",
       "title": "Exponer recursos MCP de solo lectura del repo",
-      "description": "Añadir resources para metadata y logs de Hermess sin tocar las tools existentes.",
+      "description": "Añadir resources para metadata y logs de harness sin tocar las tools existentes.",
       "acceptance": [
-        "Existe un resource para leer hermess.config.json resuelto",
-        "Existe un resource para leer .hermess/logs/hermess.jsonl",
+        "Existe un resource para leer harness.config.json resuelto",
+        "Existe un resource para leer .harness/logs/harness.jsonl",
         "La lectura respeta repoPath y archivos existentes",
         "README documenta el uso"
       ],
@@ -45,7 +45,7 @@
       "acceptance": [
         "La tool solo acepta rutas dentro de repoPath",
         "Puede crear o reemplazar archivos UTF-8 de texto",
-        "Toda operación queda registrada en .hermess/logs",
+        "Toda operación queda registrada en .harness/logs",
         "README y docs describen su riesgo y restricciones"
       ],
       "sdd": true,
@@ -60,7 +60,7 @@
         "Las lecturas bloquean escapes por symlink fuera de repoPath",
         "list_files rechaza globs absolutos o con ../ y no sigue symlinks externos",
         "run_command devuelve error MCP cuando el comando falla",
-        "hermess://config/raw responde de forma estable aunque no exista hermess.config.json",
+        "harness://config/raw responde de forma estable aunque no exista harness.config.json",
         "init.sh exige evidencia SDD para features cerradas"
       ],
       "status": "done"

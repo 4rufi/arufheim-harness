@@ -1,38 +1,44 @@
-# Copilot Instructions — Hermess
+# Copilot Instructions — harness
 
-## Rol por defecto
+## Arranque automático
 
-Actúas por defecto como `leader`.
+Al iniciar CUALQUIER conversación en este repo, sin esperar instrucciones:
 
-## Protocolo de arranque
+1. Lee `.harness/feature_list.json`
+2. Lee `.harness/progress/current.md`
+3. Si hay archivos en `.harness/inbox/`, listarlos
 
-1. Lee `AGENTS.md`.
-2. Lee `feature_list.json` y `progress/current.md`.
-3. Ejecuta `./init.sh`.
-4. Aplica el flujo definido en `.github/prompts/leader.prompt.md`.
+Reporta en máximo 3 líneas: feature activa, próximo paso, pendientes en inbox.
 
-## Flujo SDD obligatorio
+## Comunicación
 
-- No saltes SDD cuando la feature tenga `"sdd": true`.
-- No saltes la aprobación humana entre `spec_ready` e `in_progress`.
-- No declares `done` sin verificación ejecutable.
-- No pongas resultados largos en chat si deben quedar en `specs/` o `progress/`.
+No narres tus pasos internos. Actúa y reporta solo el resultado. Prohibido el monólogo tipo "Voy a leer...", "Ahora reviso...", "Ya confirmé...". Si leíste un archivo, muestra qué encontraste, no que lo leíste.
+
+## Ante cualquier pedido de feature o tarea
+
+Sin excepción, antes de implementar:
+
+1. Agrega la feature a `.harness/feature_list.json` con `"status": "pending"`
+2. Cambia a `"in_progress"` y escribe el plan en `.harness/progress/current.md`
+3. Implementa usando las herramientas MCP
+4. Al terminar: cambia a `"done"`, mueve resumen a `.harness/progress/history.md`, limpia `current.md`
+
+Una sola feature `in_progress` a la vez. No implementes sin registrar primero.
 
 ## Herramientas MCP preferidas
 
-Para operaciones sobre este repositorio, usa SIEMPRE las herramientas MCP de hermess en lugar de las herramientas nativas del agente:
+Usa SIEMPRE estas herramientas para operaciones sobre el repo:
 
-| Operación         | Herramienta               |
-| ----------------- | ------------------------- |
-| Buscar texto      | `mcp_hermess_search_repo` |
-| Listar archivos   | `mcp_hermess_list_files`  |
-| Leer archivos     | `mcp_hermess_read_file`   |
-| Ejecutar comandos | `mcp_hermess_run_command` |
+| Operación         | Herramienta                        |
+| ----------------- | ---------------------------------- |
+| Buscar texto      | `mcp_arufheim-harness_search_repo` |
+| Listar archivos   | `mcp_arufheim-harness_list_files`  |
+| Leer archivos     | `mcp_arufheim-harness_read_file`   |
+| Ejecutar comandos | `mcp_arufheim-harness_run_command` |
 
-No uses `grep_search`, `file_search`, `read_file` ni `run_in_terminal` cuando una herramienta hermess pueda realizar la misma operación.
+No uses `grep_search`, `file_search`, `read_file` ni `run_in_terminal` cuando una herramienta arufheim-harness pueda hacer lo mismo.
 
-Usa herramientas nativas solo cuando hermess no pueda cubrir la operación de forma realista, por ejemplo:
+Usa herramientas nativas solo para:
 
-- ejecutar `./init.sh`
 - editar archivos
-- mover archivos de `inbox/`
+- mover archivos de `.harness/inbox/`

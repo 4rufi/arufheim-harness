@@ -16,10 +16,10 @@ Registro retrospectivo para dejar la evidencia SDD exigida por el arnés.
 
 ## Trazabilidad R -> verificación
 
-- R1 -> `pnpm smoke`: `listResources()` expone `hermess://config/resolved`.
-- R2 -> `pnpm smoke`: `listResources()` expone `hermess://logs/main`.
-- R3 -> `pnpm smoke`: `readResource("hermess://config/resolved")` devuelve JSON con `allowedCommands`.
-- R4 -> `pnpm smoke`: `readResource("hermess://logs/main")` devuelve contenido textual cuando el log existe.
+- R1 -> `pnpm smoke`: `listResources()` expone `harness://config/resolved`.
+- R2 -> `pnpm smoke`: `listResources()` expone `harness://logs/main`.
+- R3 -> `pnpm smoke`: `readResource("harness://config/resolved")` devuelve JSON con `allowedCommands`.
+- R4 -> `pnpm smoke`: `readResource("harness://logs/main")` devuelve contenido textual cuando el log existe.
 - R5 -> revisión de implementación en `src/resources/repo-resources.ts`: el resource de log responde texto vacío con `_meta.exists=false` si el archivo aún no existe.
 - R6 -> revisión de implementación en `src/resources/repo-resources.ts` + helpers de `src/safety.ts`: ambas rutas quedan confinadas a `repoPath`.
 - R7 -> revisión de API MCP en `src/index.ts`: solo se registran resources de lectura; no se añadieron tools de escritura.

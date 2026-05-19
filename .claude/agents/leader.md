@@ -20,7 +20,7 @@ cerrar el flujo. No escribes código de producto.
 
 ## Protocolo de arranque
 
-1. Lee `AGENTS.md`.
+1. Lee `AGENTS.md` y `progress/README.md`.
 2. Lee `feature_list.json` y `progress/current.md`.
 3. Si hay archivos nuevos en `inbox/`, considera lanzar `inbox_reader` antes
    del flujo normal.
@@ -58,7 +58,9 @@ Mensaje esperado al humano:
    `reviewer`.
 4. Si el `reviewer` devuelve `APPROVED -> progress/review_<name>.md`,
    actualizas `feature_list.json` a `done`.
-5. Actualizas `progress/history.md` y dejas `progress/current.md` consistente.
+5. Añades una entrada append-only a `progress/history.md` con `Agente`,
+   `Plan`, `Cambios`, `Verificación` y `Cierre`, y luego reseteas
+   `progress/current.md` a la plantilla canónica.
 
 ### Caso C — `status == spec_ready` sin aprobación humana
 
@@ -72,7 +74,8 @@ existentes. Luego pregunta al humano si quiere reanudar o abortar.
 ### Caso E — subagente devuelve `blocked`
 
 1. Actualizas la feature a `blocked` si corresponde.
-2. Documentas el motivo en `progress/current.md`.
+2. Documentas el motivo en `## Bitácora` y dejas `## Próximo paso` con el
+   bloqueo explícito.
 3. Paras y reportas el bloqueo al humano.
 
 ## Regla anti teléfono descompuesto

@@ -6,13 +6,13 @@ import { z } from "zod";
 
 import { DEFAULT_IGNORED } from "./safety.js";
 
-const HermessConfigSchema = z.object({
+const harnessConfigSchema = z.object({
   repoPath: z.string().default("."),
   allowedCommands: z.array(z.string()).default([]),
   ignored: z.array(z.string()).default(DEFAULT_IGNORED),
 });
 
-export interface ResolvedHermessConfig {
+export interface ResolvedharnessConfig {
   configPath: string;
   repoPath: string;
   allowedCommands: string[];
@@ -28,24 +28,24 @@ interface LoadConfigOptions {
 
 export async function loadConfig(
   options: LoadConfigOptions = {},
-): Promise<ResolvedHermessConfig> {
+): Promise<ResolvedharnessConfig> {
   const cwd = options.cwd ?? process.cwd();
   const argv = options.argv ?? process.argv.slice(2);
   const env = options.env ?? process.env;
 
-  // --repo-path / HERMESS_REPO_PATH: apunta hermess a cualquier repo sin necesitar
-  // un hermess.config.json en ese repo. Si existe uno, se usa para allowedCommands
+  // --repo-path / harness_REPO_PATH: apunta harness a cualquier repo sin necesitar
+  // un harness.config.json en ese repo. Si existe uno, se usa para allowedCommands
   // e ignored, pero repoPath siempre viene del argumento.
-  const explicitRepoPath = readRepoPathFromArgs(argv) ?? env.HERMESS_REPO_PATH;
+  const explicitRepoPath = readRepoPathFromArgs(argv) ?? env.harness_REPO_PATH;
   if (explicitRepoPath) {
     const repoPath = path.resolve(cwd, explicitRepoPath);
-    const configPath = path.resolve(repoPath, "hermess.config.json");
-    let parsed: z.infer<typeof HermessConfigSchema>;
+    const configPath = path.resolve(repoPath, "harness.config.json");
+    let parsed: z.infer<typeof harnessConfigSchema>;
     try {
       const raw = await readFile(configPath, "utf8");
-      parsed = HermessConfigSchema.parse(JSON.parse(raw));
+      parsed = harnessConfigSchema.parse(JSON.parse(raw));
     } catch {
-      parsed = HermessConfigSchema.parse({});
+      parsed = harnessConfigSchema.parse({});
     }
     return {
       configPath,
@@ -56,16 +56,16 @@ export async function loadConfig(
     };
   }
 
-  const explicitPath = readConfigPathFromArgs(argv) ?? env.HERMESS_CONFIG;
+  const explicitPath = readConfigPathFromArgs(argv) ?? env.harness_CONFIG;
   const configPath = resolveConfigPath(argv, env, cwd);
 
-  let parsed: z.infer<typeof HermessConfigSchema>;
+  let parsed: z.infer<typeof harnessConfigSchema>;
   try {
     const raw = await readFile(configPath, "utf8");
-    parsed = HermessConfigSchema.parse(JSON.parse(raw));
+    parsed = harnessConfigSchema.parse(JSON.parse(raw));
   } catch (err: unknown) {
     if (!explicitPath && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      parsed = HermessConfigSchema.parse({});
+      parsed = harnessConfigSchema.parse({});
     } else {
       throw err;
     }
@@ -87,7 +87,7 @@ export function resolveConfigPath(
 ): string {
   const fromArg = readConfigPathFromArgs(argv);
   const candidate =
-    fromArg ?? env.HERMESS_CONFIG ?? path.resolve(cwd, "hermess.config.json");
+    fromArg ?? env.harness_CONFIG ?? path.resolve(cwd, "harness.config.json");
   return path.resolve(cwd, candidate);
 }
 

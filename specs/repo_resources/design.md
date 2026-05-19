@@ -4,8 +4,8 @@
 
 La feature añade dos resources MCP estáticos al servidor existente:
 
-- un resource para la config resuelta de Hermess
-- un resource para el log JSONL de Hermess
+- un resource para la config resuelta de harness
+- un resource para el log JSONL de harness
 
 No cambia el transporte, no añade tools nuevas y no modifica la semántica de las tools actuales.
 
@@ -25,8 +25,8 @@ Registrar dos resources estáticos con `server.registerResource(...)`.
 
 URIs candidatas:
 
-- `hermess://config/resolved`
-- `hermess://logs/main`
+- `harness://config/resolved`
+- `harness://logs/main`
 
 La elección de URIs estáticas evita introducir templates o variables antes de necesitarlas.
 
@@ -81,7 +81,7 @@ Agregar en `src/index.ts` el registro inline de ambos resources.
 Crear helper explícito:
 
 ```ts
-registerRepoResources(server: McpServer, config: ResolvedHermessConfig, logger: JsonlLogger): void
+registerRepoResources(server: McpServer, config: ResolvedharnessConfig, logger: JsonlLogger): void
 ```
 
 La opción B es preferible porque mantiene `src/index.ts` pequeño y deja el patrón listo para futuros resources.
@@ -109,6 +109,5 @@ Se descarta porque:
 - `pnpm build`
 - `pnpm smoke`
 - prueba manual con Inspector o cliente MCP listando resources
-- lectura manual de `hermess://config/resolved`
-- lectura manual de `hermess://logs/main` con y sin archivo existente
-
+- lectura manual de `harness://config/resolved`
+- lectura manual de `harness://logs/main` con y sin archivo existente

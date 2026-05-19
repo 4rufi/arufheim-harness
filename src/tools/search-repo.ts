@@ -4,22 +4,22 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import fg from "fast-glob";
 import { z } from "zod";
 
-import type { ResolvedHermessConfig } from "../config.js";
+import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
 import {
   MAX_SEARCH_FILE_BYTES,
   MAX_SEARCH_RESULTS,
   resolveExistingWithinRepo,
   toErrorResult,
-  toSuccessResult
+  toSuccessResult,
 } from "../safety.js";
 
 const MAX_SCANNED_FILES = 250;
 
 export function registerSearchRepoTool(
   server: McpServer,
-  config: ResolvedHermessConfig,
-  logger: JsonlLogger
+  config: ResolvedharnessConfig,
+  logger: JsonlLogger,
 ): void {
   server.registerTool(
     "search_repo",
@@ -27,15 +27,15 @@ export function registerSearchRepoTool(
       title: "Search Repo",
       description: "Search plain text across repository files.",
       inputSchema: {
-        query: z.string().min(1).describe("Plain-text query to search for")
-      }
+        query: z.string().min(1).describe("Plain-text query to search for"),
+      },
     },
     async ({ query }) => {
       const startedAt = Date.now();
 
       await logger.log("tool_call_started", {
         tool: "search_repo",
-        input: { query }
+        input: { query },
       });
 
       try {
@@ -44,10 +44,11 @@ export function registerSearchRepoTool(
           dot: true,
           onlyFiles: true,
           ignore: config.ignored,
-          followSymbolicLinks: false
+          followSymbolicLinks: false,
         });
 
-        const matches: Array<{ path: string; line: number; preview: string }> = [];
+        const matches: Array<{ path: string; line: number; preview: string }> =
+          [];
         let scannedFiles = 0;
         let truncated = false;
 
@@ -86,7 +87,7 @@ export function registerSearchRepoTool(
             matches.push({
               path: relativePath,
               line: index + 1,
-              preview: lines[index].slice(0, 240)
+              preview: lines[index].slice(0, 240),
             });
 
             if (matches.length >= MAX_SEARCH_RESULTS) {
@@ -100,14 +101,14 @@ export function registerSearchRepoTool(
           query,
           scannedFiles,
           truncated,
-          matches
+          matches,
         };
 
         await logger.log("tool_call_finished", {
           tool: "search_repo",
           ok: true,
           durationMs: Date.now() - startedAt,
-          matches: matches.length
+          matches: matches.length,
         });
 
         return toSuccessResult(result);
@@ -117,11 +118,11 @@ export function registerSearchRepoTool(
           tool: "search_repo",
           ok: false,
           durationMs: Date.now() - startedAt,
-          error: message
+          error: message,
         });
         return toErrorResult(message);
       }
-    }
+    },
   );
 }
 

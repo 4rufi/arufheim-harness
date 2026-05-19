@@ -2,9 +2,9 @@
 mode: agent
 description: Redacta specs Kiro-style (requirements/design/tasks) para una feature pending con "sdd": true. NUNCA escribe código de aplicación ni tests.
 tools:
-  - mcp_hermess_read_file
-  - mcp_hermess_list_files
-  - mcp_hermess_search_repo
+  - mcp_arufheim-harness_read_file
+  - mcp_arufheim-harness_list_files
+  - mcp_arufheim-harness_search_repo
 ---
 
 # Agente Spec Author

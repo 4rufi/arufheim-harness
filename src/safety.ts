@@ -5,7 +5,7 @@ export const DEFAULT_IGNORED = [
   "node_modules/**",
   ".git/**",
   "dist/**",
-  ".hermess/**"
+  ".harness/**",
 ];
 
 export const MAX_FILE_CHARS = 100_000;
@@ -54,34 +54,42 @@ export function toSuccessResult<T extends Record<string, unknown>>(result: T) {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(result, null, 2)
-      }
+        text: JSON.stringify(result, null, 2),
+      },
     ],
-    structuredContent: result
+    structuredContent: result,
   };
 }
 
-export function toErrorResult(message: string, extra: Record<string, unknown> = {}) {
+export function toErrorResult(
+  message: string,
+  extra: Record<string, unknown> = {},
+) {
   const payload = {
     error: message,
-    ...extra
+    ...extra,
   };
 
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(payload, null, 2)
-      }
+        text: JSON.stringify(payload, null, 2),
+      },
     ],
     structuredContent: payload,
-    isError: true
+    isError: true,
   };
 }
 
-export function assertAllowedCommand(command: string, allowedCommands: string[]): void {
+export function assertAllowedCommand(
+  command: string,
+  allowedCommands: string[],
+): void {
   if (!allowedCommands.includes(command.trim())) {
-    throw new Error(`Command '${command}' is not allowed by hermess.config.json.`);
+    throw new Error(
+      `Command '${command}' is not allowed by harness.config.json.`,
+    );
   }
 }
 
@@ -105,7 +113,7 @@ export function tokenizeCommand(command: string): string[] {
   for (const token of tokens) {
     if (!/^[A-Za-z0-9_./:@=-]+$/.test(token)) {
       throw new Error(
-        `Rejected token '${token}'. Quotes and shell metacharacters are not allowed.`
+        `Rejected token '${token}'. Quotes and shell metacharacters are not allowed.`,
       );
     }
   }

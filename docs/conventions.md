@@ -9,7 +9,7 @@
 
 ## Logging
 
-- Logs operativos a `.hermess/logs/hermess.jsonl`
+- Logs operativos a `.harness/logs/harness.jsonl`
 - Mensajes de arranque y diagnóstico a `stderr`
 - Nunca logs arbitrarios a `stdout`
 
@@ -23,4 +23,3 @@
 
 - Si cambias flujo o restricciones, actualiza `README.md` y el doc relevante en `docs/`
 - Si la feature es SDD, no codifiques antes de que exista su spec
-

@@ -1,11 +1,11 @@
-# arufheim-hermess
+# arufheim-harness
 
 Servidor MCP local que expone herramientas seguras sobre cualquier repositorio. Se integra con **GitHub Copilot**, **Claude Code** y cualquier cliente compatible con MCP.
 
 ## Instalación
 
 ```bash
-npm install -g arufheim-hermess
+npm install -g arufheim-harness
 ```
 
 ## Desarrollo del repo
@@ -40,7 +40,7 @@ el flujo de verificación de este repo.
 Después de instalar, configura los clientes MCP de forma global:
 
 ```bash
-arufheim-hermess init --global
+arufheim-harness init --global
 ```
 
 El asistente detecta qué clientes tienes instalados (VS Code, Claude Desktop, Claude Code) y los configura automáticamente.
@@ -49,7 +49,7 @@ Para inicializar un repo en particular (crea `.vscode/mcp.json` e `inbox/` de fo
 
 ```bash
 cd /ruta/al/repo
-arufheim-hermess init
+arufheim-harness init
 ```
 
 ## Configuración por repo (equipo)
@@ -61,10 +61,10 @@ Para que VS Code apunte al repo correcto, agrega este archivo en la raíz del pr
 ```json
 {
   "servers": {
-    "hermess": {
+    "harness": {
       "type": "stdio",
       "command": "npx",
-      "args": ["arufheim-hermess", "--repo-path", "${workspaceFolder}"]
+      "args": ["arufheim-harness", "--repo-path", "${workspaceFolder}"]
     }
   }
 }
@@ -74,7 +74,7 @@ Para que VS Code apunte al repo correcto, agrega este archivo en la raíz del pr
 
 ## Configuración opcional por repo
 
-Para personalizar los comandos permitidos o los archivos ignorados, agrega un `hermess.config.json` en la raíz del repo:
+Para personalizar los comandos permitidos o los archivos ignorados, agrega un `harness.config.json` en la raíz del repo:
 
 ```json
 {
@@ -89,8 +89,8 @@ Para personalizar los comandos permitidos o los archivos ignorados, agrega un `h
 
 | Argumento            | Env var             | Descripción                                                             |
 | -------------------- | ------------------- | ----------------------------------------------------------------------- |
-| `--repo-path <ruta>` | `HERMESS_REPO_PATH` | Raíz del repo a operar. Si se omite, usa el directorio de trabajo.      |
-| `--config <ruta>`    | `HERMESS_CONFIG`    | Ruta explícita al `hermess.config.json`.                                |
+| `--repo-path <ruta>` | `harness_REPO_PATH` | Raíz del repo a operar. Si se omite, usa el directorio de trabajo.      |
+| `--config <ruta>`    | `harness_CONFIG`    | Ruta explícita al `harness.config.json`.                                |
 | `init`               | —                   | Inicializa un repo local.                                               |
 | `init --global`      | —                   | Configura clientes MCP globales (VS Code, Claude Desktop, Claude Code). |
 
@@ -105,11 +105,11 @@ Para personalizar los comandos permitidos o los archivos ignorados, agrega un `h
 
 ## Resources disponibles
 
-| URI                         | Descripción                              |
-| --------------------------- | ---------------------------------------- |
-| `hermess://config/raw`      | Contenido del `hermess.config.json` o texto vacío si no existe |
-| `hermess://config/resolved` | Config efectivo tras resolución de paths |
-| `hermess://logs/main`       | Últimas líneas del log JSONL             |
+| URI                         | Descripción                                                    |
+| --------------------------- | -------------------------------------------------------------- |
+| `harness://config/raw`      | Contenido del `harness.config.json` o texto vacío si no existe |
+| `harness://config/resolved` | Config efectivo tras resolución de paths                       |
+| `harness://logs/main`       | Últimas líneas del log JSONL                                   |
 
 ## Seguridad
 
@@ -117,20 +117,20 @@ Para personalizar los comandos permitidos o los archivos ignorados, agrega un `h
 - Symlinks que apunten fuera de `repoPath` quedan bloqueados
 - `run_command` solo ejecuta comandos presentes en `allowedCommands`
 - `run_command` devuelve error MCP si el comando termina con `exitCode != 0`
-- `node_modules`, `.git`, `dist` y `.hermess` se ignoran por defecto
+- `node_modules`, `.git`, `dist` y `.harness` se ignoran por defecto
 - Timeout de 30 s y `maxBuffer` limitado en comandos
-- Logs en `.hermess/logs/hermess.jsonl`
+- Logs en `.harness/logs/harness.jsonl`
 
 ## Conectar a Claude Code de forma manual
 
 ```bash
-claude mcp add hermess npx arufheim-hermess
+claude mcp add harness npx arufheim-harness
 ```
 
 Para apuntar a un repo específico:
 
 ```bash
-claude mcp add hermess npx arufheim-hermess -- --repo-path /ruta/al/repo
+claude mcp add harness npx arufheim-harness -- --repo-path /ruta/al/repo
 ```
 
 ## Stack

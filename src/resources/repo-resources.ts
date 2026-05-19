@@ -2,27 +2,27 @@ import { access, readFile } from "node:fs/promises";
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import type { ResolvedHermessConfig } from "../config.js";
+import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
 import { assertExistingPathWithinRepo } from "../safety.js";
 
-const RAW_CONFIG_RESOURCE_URI = "hermess://config/raw";
-const RESOLVED_CONFIG_RESOURCE_URI = "hermess://config/resolved";
-const LOG_RESOURCE_URI = "hermess://logs/main";
+const RAW_CONFIG_RESOURCE_URI = "harness://config/raw";
+const RESOLVED_CONFIG_RESOURCE_URI = "harness://config/resolved";
+const LOG_RESOURCE_URI = "harness://logs/main";
 
 const MAX_LOG_BYTES = 128 * 1024;
 
 export function registerRepoResources(
   server: McpServer,
-  config: ResolvedHermessConfig,
+  config: ResolvedharnessConfig,
   logger: JsonlLogger,
 ): void {
   server.registerResource(
     "raw_config",
     RAW_CONFIG_RESOURCE_URI,
     {
-      title: "Raw Hermess Config",
-      description: "The raw hermess.config.json file for this server instance.",
+      title: "Raw harness Config",
+      description: "The raw harness.config.json file for this server instance.",
       mimeType: "application/json",
     },
     async (uri) => {
@@ -31,7 +31,10 @@ export function registerRepoResources(
       return withResourceLogging(logger, "raw_config", uri.href, async () => {
         const exists = await fileExists(config.configPath);
         const safePath = exists
-          ? await assertExistingPathWithinRepo(config.repoPath, config.configPath)
+          ? await assertExistingPathWithinRepo(
+              config.repoPath,
+              config.configPath,
+            )
           : config.configPath;
         const text = exists ? await readFile(safePath, "utf8") : "";
 
@@ -56,9 +59,9 @@ export function registerRepoResources(
     "resolved_config",
     RESOLVED_CONFIG_RESOURCE_URI,
     {
-      title: "Resolved Hermess Config",
+      title: "Resolved harness Config",
       description:
-        "The effective Hermess config after defaults and path resolution.",
+        "The effective harness config after defaults and path resolution.",
       mimeType: "application/json",
     },
     async (uri) => {
@@ -89,9 +92,9 @@ export function registerRepoResources(
     "main_log",
     LOG_RESOURCE_URI,
     {
-      title: "Hermess Main Log",
+      title: "harness Main Log",
       description:
-        "The tail of the JSONL operational log written by Hermess in .hermess/logs/hermess.jsonl.",
+        "The tail of the JSONL operational log written by harness in .harness/logs/harness.jsonl.",
       mimeType: "application/x-ndjson",
     },
     async (uri) => {
@@ -102,7 +105,10 @@ export function registerRepoResources(
       try {
         const exists = await fileExists(logger.logFilePath);
         const safePath = exists
-          ? await assertExistingPathWithinRepo(config.repoPath, logger.logFilePath)
+          ? await assertExistingPathWithinRepo(
+              config.repoPath,
+              logger.logFilePath,
+            )
           : logger.logFilePath;
         const text = exists ? await readTail(safePath, MAX_LOG_BYTES) : "";
 
@@ -226,14 +232,16 @@ function relativize(root: string, filePath: string): string {
 }
 
 function redactResolvedConfig(
-  config: ResolvedHermessConfig,
+  config: ResolvedharnessConfig,
 ): Record<string, unknown> {
   return {
     ...config,
     // Avoid leaking absolute internal paths unless the client really needs them.
     repoPath: ".",
     configPath: relativize(config.repoPath, config.configPath),
-    logFilePath: config.logFilePath ? relativize(config.repoPath, config.logFilePath) : undefined,
+    logFilePath: config.logFilePath
+      ? relativize(config.repoPath, config.logFilePath)
+      : undefined,
   };
 }
 

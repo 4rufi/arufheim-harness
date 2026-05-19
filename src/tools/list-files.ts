@@ -2,21 +2,21 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import fg from "fast-glob";
 import { z } from "zod";
 
-import type { ResolvedHermessConfig } from "../config.js";
+import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
 import {
   assertSafeGlobPattern,
   resolveExistingWithinRepo,
   toErrorResult,
-  toSuccessResult
+  toSuccessResult,
 } from "../safety.js";
 
 const MAX_FILES = 500;
 
 export function registerListFilesTool(
   server: McpServer,
-  config: ResolvedHermessConfig,
-  logger: JsonlLogger
+  config: ResolvedharnessConfig,
+  logger: JsonlLogger,
 ): void {
   server.registerTool(
     "list_files",
@@ -24,8 +24,11 @@ export function registerListFilesTool(
       title: "List Files",
       description: "List repository files with an optional glob pattern.",
       inputSchema: {
-        pattern: z.string().optional().describe("Glob pattern relative to repo root")
-      }
+        pattern: z
+          .string()
+          .optional()
+          .describe("Glob pattern relative to repo root"),
+      },
     },
     async ({ pattern }) => {
       const startedAt = Date.now();
@@ -33,7 +36,7 @@ export function registerListFilesTool(
 
       await logger.log("tool_call_started", {
         tool: "list_files",
-        input: { pattern: effectivePattern }
+        input: { pattern: effectivePattern },
       });
 
       try {
@@ -44,7 +47,7 @@ export function registerListFilesTool(
           dot: true,
           onlyFiles: true,
           ignore: config.ignored,
-          followSymbolicLinks: false
+          followSymbolicLinks: false,
         });
         const safeFiles: string[] = [];
 
@@ -65,14 +68,14 @@ export function registerListFilesTool(
           pattern: effectivePattern,
           total: safeFiles.length,
           truncated: safeFiles.length > MAX_FILES,
-          files: safeFiles.slice(0, MAX_FILES)
+          files: safeFiles.slice(0, MAX_FILES),
         };
 
         await logger.log("tool_call_finished", {
           tool: "list_files",
           ok: true,
           durationMs: Date.now() - startedAt,
-          total: result.total
+          total: result.total,
         });
 
         return toSuccessResult(result);
@@ -82,11 +85,11 @@ export function registerListFilesTool(
           tool: "list_files",
           ok: false,
           durationMs: Date.now() - startedAt,
-          error: message
+          error: message,
         });
         return toErrorResult(message);
       }
-    }
+    },
   );
 }
 

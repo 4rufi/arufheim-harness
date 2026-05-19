@@ -1,5 +1,5 @@
 {
   "repoPath": ".",
   "allowedCommands": ["pnpm test", "npm test", "yarn test", "ls", "pwd"],
-  "ignored": ["node_modules/**", ".git/**", "dist/**", ".hermess/**"]
+  "ignored": ["node_modules/**", ".git/**", "dist/**", ".harness/**"]
 }

@@ -1,6 +1,6 @@
 # CHECKPOINTS
 
-Un cambio en Hermess está realmente listo solo si:
+Un cambio en harness está realmente listo solo si:
 
 - `./scripts/pnpmw.sh typecheck` pasa
 - `./scripts/pnpmw.sh build` pasa
@@ -10,6 +10,8 @@ Un cambio en Hermess está realmente listo solo si:
 - `run_command` sigue protegido por allowlist
 - Las rutas siguen confinadas a `repoPath`
 - Si la feature era SDD, existe trazabilidad `R<n> -> verificación`
-- Existe `progress/impl_<feature>.md` con archivos tocados + mapa R→test + output de verificación
+- Existe `progress/impl_<feature>.md` con archivos tocados + mapa R→verificación + output de verificación
 - Existe `progress/review_<feature>.md` con checklist completo y veredicto APROBADO
+- `progress/current.md` respeta la plantilla canónica del arnés
+- `progress/history.md` conserva formato append-only y recibe el cierre de cada sesión
 - `feature_list.json`, `progress/current.md` y `progress/history.md` reflejan el estado real

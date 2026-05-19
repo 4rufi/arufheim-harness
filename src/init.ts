@@ -4,12 +4,19 @@ import path from "node:path";
 import process from "node:process";
 import * as readline from "node:readline/promises";
 
-const HERMESS_CONFIG_NAME = "hermess.config.json";
+const harness_CONFIG_NAME = "harness.config.json";
 const VSCODE_MCP_PATH = ".vscode/mcp.json";
-const INBOX_DIR = "inbox";
-const INBOX_README = "inbox/README.md";
+const COPILOT_INSTRUCTIONS_PATH = ".github/copilot-instructions.md";
+const CLAUDE_MD_PATH = "CLAUDE.md";
+const CLAUDE_COMMAND_PATH = ".claude/commands/leader.md";
+const HARNESS_DIR = ".harness";
+const FEATURE_LIST_PATH = ".harness/feature_list.json";
+const PROGRESS_DIR = ".harness/progress";
+const PROGRESS_CURRENT_PATH = ".harness/progress/current.md";
+const INBOX_DIR = ".harness/inbox";
+const INBOX_README = ".harness/inbox/README.md";
 
-const DEFAULT_HERMESS_CONFIG = {
+const DEFAULT_harness_CONFIG = {
   allowedCommands: [
     "pnpm test",
     "npm test",
@@ -22,7 +29,7 @@ const DEFAULT_HERMESS_CONFIG = {
     "node_modules/**",
     ".git/**",
     "dist/**",
-    ".hermess/**",
+    ".harness/**",
     ".next/**",
     "build/**",
   ],
@@ -30,10 +37,10 @@ const DEFAULT_HERMESS_CONFIG = {
 
 const DEFAULT_MCP_JSON = {
   servers: {
-    hermess: {
+    "arufheim-harness": {
       type: "stdio",
       command: "npx",
-      args: ["arufheim-hermess", "--repo-path", "${workspaceFolder}"],
+      args: ["arufheim-harness", "--repo-path", "${workspaceFolder}"],
     },
   },
 };
@@ -56,7 +63,157 @@ y convierte en features estructuradas.
    - Cuando Y, el sistema debe hacer Z
    \`\`\`
 3. Dile al agente: **"procesa el inbox"**
-4. Los archivos procesados se mueven a \`inbox/processed/\`
+4. Los archivos procesados se mueven a \`.harness/inbox/processed/\`
+`;
+
+const COPILOT_INSTRUCTIONS_CONTENT = `# Copilot Instructions
+
+## Arranque automático
+
+Al iniciar CUALQUIER conversación en este repo, sin esperar instrucciones:
+
+1. Lee \`.harness/feature_list.json\`
+2. Lee \`.harness/progress/current.md\`
+3. Si hay archivos en \`.harness/inbox/\`, listarlos
+
+Reporta en máximo 3 líneas: feature activa, próximo paso, pendientes en inbox.
+
+## Comunicación
+
+No narres tus pasos internos. Actúa y reporta solo el resultado. Prohibido el monólogo tipo "Voy a leer...", "Ahora reviso...", "Ya confirmé...". Si leíste un archivo, muestra qué encontraste, no que lo leíste.
+
+## Ante cualquier pedido de feature o tarea
+
+Sin excepción, antes de implementar:
+
+1. Agrega la feature a \`.harness/feature_list.json\` con \`"status": "pending"\`
+2. Cambia a \`"in_progress"\` y escribe el plan en \`.harness/progress/current.md\`
+3. Implementa usando las herramientas MCP
+4. Al terminar: cambia a \`"done"\`, mueve resumen a \`.harness/progress/history.md\`, limpia \`current.md\`
+
+Una sola feature \`in_progress\` a la vez. No implementes sin registrar primero.
+
+## Herramientas MCP preferidas
+
+Usa SIEMPRE estas herramientas para operaciones sobre el repo:
+
+| Operación         | Herramienta                        |
+| ----------------- | ---------------------------------- |
+| Buscar texto      | \`mcp_arufheim-harness_search_repo\` |
+| Listar archivos   | \`mcp_arufheim-harness_list_files\`  |
+| Leer archivos     | \`mcp_arufheim-harness_read_file\`   |
+| Ejecutar comandos | \`mcp_arufheim-harness_run_command\` |
+
+No uses \`grep_search\`, \`file_search\`, \`read_file\` ni \`run_in_terminal\` cuando una herramienta arufheim-harness pueda hacer lo mismo.
+
+Usa herramientas nativas solo para:
+- editar archivos
+- mover archivos de \`.harness/inbox/\`
+`;
+
+const CLAUDE_MD_CONTENT = `# CLAUDE.md
+
+## Protocolo de arranque
+
+1. Lee \`.harness/progress/current.md\`.
+2. Lee \`.harness/feature_list.json\`.
+3. Si hay archivos en \`.harness/inbox/\`, procésalos primero.
+
+## Flujo obligatorio por feature
+
+Antes de implementar cualquier tarea:
+
+1. Agrégala a \`.harness/feature_list.json\` con \`"status": "pending"\`
+2. Cambia el estado a \`"in_progress"\` y escribe el plan en \`.harness/progress/current.md\`
+3. Implementa
+4. Cambia el estado a \`"done"\`, documenta en \`current.md\` y agrega resumen a \`.harness/progress/history.md\`
+
+No implementes nada sin registrarlo primero en \`feature_list.json\`.
+
+## Comunicación
+
+No narres tus pasos internos. Actúa y reporta solo el resultado. Prohibido el monólogo tipo "Voy a leer...", "Ahora reviso...", "Ya confirmé...". Si leíste un archivo, muestra qué encontraste, no que lo leíste.
+
+## Herramientas MCP preferidas
+
+Para operaciones sobre este repositorio, usa SIEMPRE las herramientas MCP de arufheim-harness en lugar de las herramientas nativas:
+
+| Operación         | Herramienta                          |
+| ----------------- | ------------------------------------ |
+| Buscar texto      | \`mcp__arufheim-harness__search_repo\` |
+| Listar archivos   | \`mcp__arufheim-harness__list_files\`  |
+| Leer archivos     | \`mcp__arufheim-harness__read_file\`   |
+| Ejecutar comandos | \`mcp__arufheim-harness__run_command\` |
+
+No uses \`Glob\`, \`Grep\`, \`Read\` ni \`Bash\` cuando una herramienta arufheim-harness pueda realizar la misma operación.
+
+Usa herramientas nativas solo para:
+
+- editar archivos (\`Edit\`, \`Write\`)
+- mover archivos de \`.harness/inbox/\` (\`Bash\`)
+`;
+
+const CLAUDE_COMMAND_CONTENT = `# Leader — arranque de sesión
+
+## Protocolo de arranque
+
+1. Lee \`.harness/feature_list.json\`.
+2. Lee \`.harness/progress/current.md\`.
+3. Lista \`.harness/inbox/\` — si hay archivos, procésalos antes del flujo normal.
+
+## Reportar al humano
+
+Resume en máximo 3 líneas:
+- Feature activa (si hay una \`in_progress\`)
+- Próximo paso según \`current.md\`
+- Pendientes en inbox (si los hay)
+
+Propón la siguiente acción concreta y espera confirmación antes de ejecutar.
+
+## Comunicación
+
+No narres tus pasos internos. Actúa y reporta solo el resultado. Prohibido el monólogo tipo "Voy a leer...", "Ahora reviso...", "Ya confirmé...". Si leíste un archivo, muestra qué encontraste, no que lo leíste.
+
+## Flujo por feature
+
+\`\`\`
+pending → in_progress → done
+\`\`\`
+
+1. **Tarea nueva**: agrégala a \`.harness/feature_list.json\` con \`"status": "pending"\`
+2. **Al arrancar**: cambia a \`"in_progress"\`, escribe el plan en \`.harness/progress/current.md\`
+3. **Al terminar**: cambia a \`"done"\`, añade resumen append-only a \`.harness/progress/history.md\`, limpia \`current.md\`
+
+## Reglas duras
+
+- Una sola feature \`in_progress\` a la vez.
+- No implementes sin registrar primero en \`feature_list.json\`.
+- No declares \`done\` sin verificación ejecutable.
+- Si te bloqueas, deja estado \`blocked\` y documenta el motivo en \`current.md\`.
+- Tú eres el único que actualiza \`.harness/feature_list.json\`.
+`;
+
+const COMMUNICATION_PATCH = `## Comunicación
+
+No narres tus pasos internos. Actúa y reporta solo el resultado. Prohibido el monólogo tipo "Voy a leer...", "Ahora reviso...", "Ya confirmé...". Si leíste un archivo, muestra qué encontraste, no que lo leíste.
+`;
+
+const FEATURE_LIST_CONTENT = `[]
+`;
+
+const PROGRESS_CURRENT_CONTENT = `# Sesión actual
+
+## Plan
+
+_Sin plan activo._
+
+## Bitácora
+
+_Sin entradas._
+
+## Próximo paso
+
+_Nada pendiente._
 `;
 
 // ─── Rutas de config global por cliente MCP ──────────────────────────────────
@@ -105,10 +262,10 @@ export function parseJsonc(text: string): unknown {
 
 // Sin --repo-path: en configs globales el cliente (VS Code, Claude Code) fija
 // el CWD al workspace root, y el servidor lo usa como repoPath automáticamente.
-const HERMESS_SERVER_ENTRY = {
+const harness_SERVER_ENTRY = {
   type: "stdio",
   command: "npx",
-  args: ["arufheim-hermess"],
+  args: ["arufheim-harness"],
 };
 
 async function addToVSCodeGlobal(): Promise<void> {
@@ -123,14 +280,14 @@ async function addToVSCodeGlobal(): Promise<void> {
   }
 
   const servers = (config["servers"] ?? {}) as Record<string, unknown>;
-  if (servers["hermess"]) {
+  if (servers["arufheim-harness"]) {
     console.log(
-      `  skip  VS Code global (hermess ya configurado en ${mcpPath})`,
+      `  skip  VS Code global (harness ya configurado en ${mcpPath})`,
     );
     return;
   }
 
-  servers["hermess"] = HERMESS_SERVER_ENTRY;
+  servers["arufheim-harness"] = harness_SERVER_ENTRY;
   config["servers"] = servers;
 
   await mkdir(path.dirname(mcpPath), { recursive: true });
@@ -150,16 +307,16 @@ async function addToClaudeDesktop(): Promise<void> {
   }
 
   const mcpServers = (config["mcpServers"] ?? {}) as Record<string, unknown>;
-  if (mcpServers["hermess"]) {
+  if (mcpServers["arufheim-harness"]) {
     console.log(
-      `  skip  Claude Desktop (hermess ya configurado en ${cfgPath})`,
+      `  skip  Claude Desktop (harness ya configurado en ${cfgPath})`,
     );
     return;
   }
 
-  mcpServers["hermess"] = {
+  mcpServers["arufheim-harness"] = {
     command: "npx",
-    args: ["arufheim-hermess"],
+    args: ["arufheim-harness"],
   };
   config["mcpServers"] = mcpServers;
 
@@ -180,14 +337,14 @@ async function addToClaudeCode(): Promise<void> {
   }
 
   const mcpServers = (config["mcpServers"] ?? {}) as Record<string, unknown>;
-  if (mcpServers["hermess"]) {
-    console.log(`  skip  Claude Code (hermess ya configurado en ${cfgPath})`);
+  if (mcpServers["arufheim-harness"]) {
+    console.log(`  skip  Claude Code (harness ya configurado en ${cfgPath})`);
     return;
   }
 
-  mcpServers["hermess"] = {
+  mcpServers["arufheim-harness"] = {
     command: "npx",
-    args: ["arufheim-hermess"],
+    args: ["arufheim-harness"],
   };
   config["mcpServers"] = mcpServers;
 
@@ -213,7 +370,7 @@ const CLIENTS = [
 ] as const;
 
 async function runInitGlobal(): Promise<void> {
-  console.log("\n¿Para qué cliente MCP deseas configurar hermess?\n");
+  console.log("\n¿Para qué cliente MCP deseas configurar harness?\n");
   CLIENTS.forEach((c, i) => {
     console.log(`  ${i + 1}) ${c.label.padEnd(20)} ${c.path()}`);
   });
@@ -241,9 +398,43 @@ async function runInitGlobal(): Promise<void> {
     await CLIENTS[choice - 1].fn();
   }
 
+  // Intentar recargar VS Code via CLI para que detecte el nuevo servidor
+  const { execSync } = await import("node:child_process");
+  let reloaded = false;
+  try {
+    execSync("code --command workbench.action.reloadWindow", {
+      stdio: "ignore",
+      timeout: 3000,
+    });
+    reloaded = true;
+  } catch {
+    // code CLI no disponible o no hay ventana abierta — no es error crítico
+  }
+
+  if (reloaded) {
+    console.log("\n✓ Listo. VS Code se está recargando.\n");
+    console.log("  Una vez recargado, activa el servidor así:");
+    console.log(
+      "  1. Abre el panel MCP (icono de enchufe en la barra lateral)",
+    );
+    console.log('  2. Busca "arufheim-harness" y haz click en Start\n');
+  } else {
+    console.log("\n✓ Configuración guardada. Para activar el servidor:\n");
+    console.log("  VS Code:");
+    console.log('    1. Cmd+Shift+P → "Developer: Reload Window"');
+    console.log(
+      '    2. Panel MCP → busca "arufheim-harness" → click en Start\n',
+    );
+    console.log("  Claude Desktop / Claude Code:");
+    console.log("    1. Cierra y vuelve a abrir la app\n");
+  }
+
+  console.log("─".repeat(50));
   console.log(
-    "\n✓ Listo. Reinicia el cliente MCP para que tome los cambios.\n",
+    "\nPróximo paso — inicializa cada repo donde quieras usar harness:\n",
   );
+  console.log("  cd /ruta/al/repo");
+  console.log("  arufheim-harness init\n");
 }
 
 // ─── Init local (por repo) ────────────────────────────────────────────────────
@@ -277,19 +468,81 @@ async function writeIfAbsent(
   console.log(`  create ${label}`);
 }
 
+/** Appends `section` to an existing file only if `marker` is not already present. */
+async function patchIfMissing(
+  filePath: string,
+  marker: string,
+  section: string,
+  label: string,
+): Promise<void> {
+  if (!(await fileExists(filePath))) return;
+  const current = await readFile(filePath, "utf8");
+  if (current.includes(marker)) {
+    console.log(`  skip  ${label} (ya tiene la sección)`);
+    return;
+  }
+  await writeFile(filePath, current.trimEnd() + "\n\n" + section, "utf8");
+  console.log(`  patch ${label}`);
+}
+
 async function runInitLocal(repoPath: string): Promise<void> {
-  console.log(`\nInicializando hermess en: ${repoPath}\n`);
+  console.log(`\nInicializando harness en: ${repoPath}\n`);
 
   await writeIfAbsent(
-    path.join(repoPath, HERMESS_CONFIG_NAME),
-    JSON.stringify(DEFAULT_HERMESS_CONFIG, null, 2) + "\n",
-    HERMESS_CONFIG_NAME,
+    path.join(repoPath, harness_CONFIG_NAME),
+    JSON.stringify(DEFAULT_harness_CONFIG, null, 2) + "\n",
+    harness_CONFIG_NAME,
   );
 
   await writeIfAbsent(
     path.join(repoPath, VSCODE_MCP_PATH),
     JSON.stringify(DEFAULT_MCP_JSON, null, 2) + "\n",
     VSCODE_MCP_PATH,
+  );
+
+  await writeIfAbsent(
+    path.join(repoPath, COPILOT_INSTRUCTIONS_PATH),
+    COPILOT_INSTRUCTIONS_CONTENT,
+    COPILOT_INSTRUCTIONS_PATH,
+  );
+  await patchIfMissing(
+    path.join(repoPath, COPILOT_INSTRUCTIONS_PATH),
+    "## Comunicación",
+    COMMUNICATION_PATCH,
+    COPILOT_INSTRUCTIONS_PATH,
+  );
+
+  await writeIfAbsent(
+    path.join(repoPath, CLAUDE_MD_PATH),
+    CLAUDE_MD_CONTENT,
+    CLAUDE_MD_PATH,
+  );
+  await patchIfMissing(
+    path.join(repoPath, CLAUDE_MD_PATH),
+    "## Comunicación",
+    COMMUNICATION_PATCH,
+    CLAUDE_MD_PATH,
+  );
+
+  await writeIfAbsent(
+    path.join(repoPath, CLAUDE_COMMAND_PATH),
+    CLAUDE_COMMAND_CONTENT,
+    CLAUDE_COMMAND_PATH,
+  );
+
+  await mkdir(path.join(repoPath, HARNESS_DIR), { recursive: true });
+
+  await writeIfAbsent(
+    path.join(repoPath, FEATURE_LIST_PATH),
+    FEATURE_LIST_CONTENT,
+    FEATURE_LIST_PATH,
+  );
+
+  await mkdir(path.join(repoPath, PROGRESS_DIR), { recursive: true });
+  await writeIfAbsent(
+    path.join(repoPath, PROGRESS_CURRENT_PATH),
+    PROGRESS_CURRENT_CONTENT,
+    PROGRESS_CURRENT_PATH,
   );
 
   await writeIfAbsent(
@@ -365,13 +618,13 @@ function stripJsonComments(text: string): string {
         escaped = false;
       } else if (char === "\\") {
         escaped = true;
-      } else if (char === "\"") {
+      } else if (char === '"') {
         inString = false;
       }
       continue;
     }
 
-    if (char === "\"") {
+    if (char === '"') {
       inString = true;
       result += char;
       continue;
@@ -409,13 +662,13 @@ function stripTrailingCommas(text: string): string {
         escaped = false;
       } else if (char === "\\") {
         escaped = true;
-      } else if (char === "\"") {
+      } else if (char === '"') {
         inString = false;
       }
       continue;
     }
 
-    if (char === "\"") {
+    if (char === '"') {
       inString = true;
       result += char;
       continue;

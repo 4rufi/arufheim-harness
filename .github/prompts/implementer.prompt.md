@@ -2,10 +2,10 @@
 mode: agent
 description: Trabajador. Implementa una sola feature según su spec aprobado. Escribe código, verificación y evidencia de trazabilidad.
 tools:
-  - mcp_hermess_read_file
-  - mcp_hermess_list_files
-  - mcp_hermess_search_repo
-  - mcp_hermess_run_command
+  - mcp_arufheim-harness_read_file
+  - mcp_arufheim-harness_list_files
+  - mcp_arufheim-harness_search_repo
+  - mcp_arufheim-harness_run_command
 ---
 
 # Agente Implementador
@@ -40,13 +40,16 @@ aprobada a partir de `specs/<name>/`.
 
 ## Protocolo
 
-1. Lee `AGENTS.md`, `docs/architecture.md`, `docs/conventions.md`,
-   `docs/specs.md`.
+1. Lee `AGENTS.md`, `progress/README.md`, `docs/architecture.md`,
+   `docs/conventions.md`, `docs/specs.md`.
 2. Lee completo `specs/<name>/{requirements.md,design.md,tasks.md}`.
-3. Actualiza `progress/current.md` con:
-   - feature en curso
-   - plan con las tasks `T1..Tn`
-   - riesgos o bloqueos detectados
+3. Actualiza `progress/current.md` sin romper la plantilla canónica:
+   - `Feature en curso`: `<id> — <name>`
+   - `Inicio`: fecha actual si la sesión empieza aquí
+   - `Agente`: tu rol
+   - `## Plan`: las tasks `T1..Tn`
+   - `## Bitácora`: riesgos, verificaciones parciales y bloqueos
+   - `## Próximo paso`: la acción inmediata
 4. Ejecuta las tasks de `tasks.md` en orden.
 
 Para cada task `T<n>`:
@@ -58,7 +61,8 @@ Para cada task `T<n>`:
    verificación ejecutable concreta y documenta por qué.
 4. Corre la verificación mínima relevante para esa task.
 5. Solo entonces marca `[x] T<n>` en `tasks.md`.
-6. Actualiza `progress/current.md` con lo aprendido si cambia el estado real.
+6. Añade una entrada a `## Bitácora` y actualiza `## Próximo paso` si cambia el
+   estado real.
 
 ## Verificación final
 
@@ -75,18 +79,22 @@ Antes de terminar, escribe `progress/impl_<name>.md` con:
 # Implementación — <name>
 
 ## Archivos tocados
+
 - src/...
 
 ## Trazabilidad R<n> -> test / verificación
+
 - R1 -> `path/al/test` o nombre del test automatizado
 - R2 -> `path/al/test`
 - R3 -> sin test automatizado por <motivo>; verificado con `<comando>`
 
 ## Output de verificación
+
 - `./init.sh`
 - resumen o salida relevante
 
 ## Bloqueos o decisiones
+
 - ...
 ```
 

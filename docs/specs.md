@@ -1,4 +1,4 @@
-# Spec Driven Development en Hermess
+# Spec Driven Development en harness
 
 Las features con `"sdd": true` siguen:
 
@@ -47,4 +47,3 @@ Checklist discreta y ejecutable. Cada task referencia los `R<n>` que cubre.
 ## Regla dura
 
 No se implementa una feature SDD sin aprobación humana explícita cuando queda en `spec_ready`.
-

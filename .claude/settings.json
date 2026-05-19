@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./init.sh > /tmp/hermess_init.log 2>&1 && echo '[hermess] init.sh OK' || (echo '[hermess] init.sh FALLÓ' && tail -40 /tmp/hermess_init.log)",
+            "command": "./init.sh > /tmp/harness_init.log 2>&1 && echo '[harness] init.sh OK' || (echo '[harness] init.sh FALLÓ' && tail -40 /tmp/harness_init.log)",
             "description": "Antes de cerrar, fuerza la verificación completa."
           }
         ]

@@ -1,6 +1,6 @@
 # Verificación
 
-En Hermess no basta con decir “arranca”. Hay que demostrarlo.
+En harness no basta con decir “arranca”. Hay que demostrarlo.
 
 ## Nivel 1
 

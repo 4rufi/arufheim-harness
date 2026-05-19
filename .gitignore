@@ -1,5 +1,5 @@
 node_modules
 dist
-.hermess
+.harness
 .DS_Store
 *.tsbuildinfo

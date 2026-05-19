@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 
   console.error(
     [
-      "Hermess MCP ready",
+      "harness MCP ready",
       `config: ${config.configPath}`,
       `repo: ${config.repoPath}`,
       `logs: ${logger.logFilePath}`,
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   );
 
   const server = new McpServer({
-    name: "hermess",
+    name: "harness",
     version: "0.1.0",
   });
 

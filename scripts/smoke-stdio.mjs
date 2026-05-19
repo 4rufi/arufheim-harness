@@ -10,7 +10,7 @@ import { parseJsonc } from "../dist/init.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const configPath = path.join(repoRoot, "hermess.config.json");
+const configPath = path.join(repoRoot, "harness.config.json");
 const distPath = path.join(repoRoot, "dist", "index.js");
 const smokeTimeout = setTimeout(() => {
   fail("Smoke timeout.");
@@ -27,52 +27,59 @@ try {
 }
 
 async function smokeDefaultRepo() {
-  await withHermess(
+  await withharness(
     {
       cwd: repoRoot,
       args: ["--config", configPath],
-      name: "hermess-smoke-default",
+      name: "harness-smoke-default",
     },
     async ({ client, stderr }) => {
       const { resources } = await client.listResources();
       const resourceUris = resources.map((resource) => resource.uri);
       assert(
-        resourceUris.includes("hermess://config/raw"),
+        resourceUris.includes("harness://config/raw"),
         `Missing raw config resource. Saw: ${resourceUris.join(", ")}`,
       );
       assert(
-        resourceUris.includes("hermess://config/resolved"),
+        resourceUris.includes("harness://config/resolved"),
         `Missing resolved config resource. Saw: ${resourceUris.join(", ")}`,
       );
       assert(
-        resourceUris.includes("hermess://logs/main"),
+        resourceUris.includes("harness://logs/main"),
         `Missing log resource. Saw: ${resourceUris.join(", ")}`,
       );
 
-      const rawConfig = await client.readResource({ uri: "hermess://config/raw" });
-      const rawConfigContent = getTextResource(rawConfig, "Raw config resource");
+      const rawConfig = await client.readResource({
+        uri: "harness://config/raw",
+      });
+      const rawConfigContent = getTextResource(
+        rawConfig,
+        "Raw config resource",
+      );
       assert(
         rawConfigContent._meta?.exists === true,
         `Expected raw config to exist.\n${JSON.stringify(rawConfigContent._meta)}`,
       );
       assert(
-        rawConfigContent.text.includes("\"allowedCommands\""),
-        `Raw config resource does not look like hermess.config.json.\n${rawConfigContent.text}`,
+        rawConfigContent.text.includes('"allowedCommands"'),
+        `Raw config resource does not look like harness.config.json.\n${rawConfigContent.text}`,
       );
 
       const configResult = await client.readResource({
-        uri: "hermess://config/resolved",
+        uri: "harness://config/resolved",
       });
       const configText = getTextResource(
         configResult,
         "Resolved config resource",
       ).text;
       assert(
-        configText.includes("\"allowedCommands\""),
-        `Resolved config resource does not look like hermess.config.json.\n${configText}`,
+        configText.includes('"allowedCommands"'),
+        `Resolved config resource does not look like harness.config.json.\n${configText}`,
       );
 
-      const logResult = await client.readResource({ uri: "hermess://logs/main" });
+      const logResult = await client.readResource({
+        uri: "harness://logs/main",
+      });
       const logContent = getTextResource(logResult, "Log resource");
       assert(
         typeof logContent._meta?.exists === "boolean",
@@ -80,7 +87,7 @@ async function smokeDefaultRepo() {
       );
 
       assert(
-        stderr.includes("Hermess MCP ready"),
+        stderr.includes("harness MCP ready"),
         `Missing readiness banner.\nstderr:\n${stderr}`,
       );
       assert(
@@ -96,16 +103,20 @@ async function smokeDefaultRepo() {
 }
 
 async function smokeMissingRawConfig() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hermess-smoke-missing-"));
+  const tempRoot = await mkdtemp(
+    path.join(os.tmpdir(), "harness-smoke-missing-"),
+  );
   try {
-    await withHermess(
+    await withharness(
       {
         cwd: tempRoot,
         args: ["--repo-path", tempRoot],
-        name: "hermess-smoke-missing-config",
+        name: "harness-smoke-missing-config",
       },
       async ({ client }) => {
-        const rawConfig = await client.readResource({ uri: "hermess://config/raw" });
+        const rawConfig = await client.readResource({
+          uri: "harness://config/raw",
+        });
         const rawConfigContent = getTextResource(
           rawConfig,
           "Raw config resource without file",
@@ -126,7 +137,9 @@ async function smokeMissingRawConfig() {
 }
 
 async function smokeSecurityBoundaries() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hermess-smoke-security-"));
+  const tempRoot = await mkdtemp(
+    path.join(os.tmpdir(), "harness-smoke-security-"),
+  );
   const repoPath = path.join(tempRoot, "repo");
   const outsidePath = path.join(tempRoot, "outside");
 
@@ -134,35 +147,48 @@ async function smokeSecurityBoundaries() {
     await mkdir(repoPath, { recursive: true });
     await mkdir(outsidePath, { recursive: true });
     await writeFile(
-      path.join(repoPath, "hermess.config.json"),
+      path.join(repoPath, "harness.config.json"),
       JSON.stringify(
         {
           allowedCommands: ["ls missing-target"],
-          ignored: ["node_modules/**", ".git/**", "dist/**", ".hermess/**"],
+          ignored: ["node_modules/**", ".git/**", "dist/**", ".harness/**"],
         },
         null,
         2,
       ) + "\n",
       "utf8",
     );
-    await writeFile(path.join(repoPath, "inside.txt"), "needle inside\n", "utf8");
-    await writeFile(path.join(outsidePath, "secret.txt"), "needle outside\n", "utf8");
+    await writeFile(
+      path.join(repoPath, "inside.txt"),
+      "needle inside\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(outsidePath, "secret.txt"),
+      "needle outside\n",
+      "utf8",
+    );
     await symlink(outsidePath, path.join(repoPath, "leak"));
 
-    await withHermess(
+    await withharness(
       {
         cwd: repoPath,
         args: ["--repo-path", repoPath],
-        name: "hermess-smoke-security",
+        name: "harness-smoke-security",
       },
       async ({ client }) => {
         const readLeak = await client.callTool({
           name: "read_file",
           arguments: { path: "leak/secret.txt" },
         });
-        assert(readLeak.isError === true, "Symlink escape should fail in read_file.");
         assert(
-          JSON.stringify(readLeak.structuredContent).includes("Blocked path traversal attempt"),
+          readLeak.isError === true,
+          "Symlink escape should fail in read_file.",
+        );
+        assert(
+          JSON.stringify(readLeak.structuredContent).includes(
+            "Blocked path traversal attempt",
+          ),
           `Unexpected read_file error payload.\n${JSON.stringify(readLeak, null, 2)}`,
         );
 
@@ -170,9 +196,14 @@ async function smokeSecurityBoundaries() {
           name: "list_files",
           arguments: { pattern: "../outside/secret.txt" },
         });
-        assert(escapedList.isError === true, "Parent glob escape should fail in list_files.");
         assert(
-          JSON.stringify(escapedList.structuredContent).includes("cannot traverse outside repoPath"),
+          escapedList.isError === true,
+          "Parent glob escape should fail in list_files.",
+        );
+        assert(
+          JSON.stringify(escapedList.structuredContent).includes(
+            "cannot traverse outside repoPath",
+          ),
           `Unexpected list_files error payload.\n${JSON.stringify(escapedList, null, 2)}`,
         );
 
@@ -248,12 +279,12 @@ function smokeJsoncParser() {
   );
 }
 
-async function withHermess(options, run) {
+async function withharness(options, run) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [distPath, ...options.args],
     cwd: options.cwd,
-    stderr: "pipe"
+    stderr: "pipe",
   });
   let stderr = "";
   const stderrStream = transport.stderr;
@@ -267,11 +298,11 @@ async function withHermess(options, run) {
   const client = new Client(
     {
       name: options.name,
-      version: "0.1.0"
+      version: "0.1.0",
     },
     {
-      capabilities: {}
-    }
+      capabilities: {},
+    },
   );
 
   try {
@@ -283,9 +314,10 @@ async function withHermess(options, run) {
 }
 
 function getTextResource(result, label) {
-  const content = result.contents[0] && "text" in result.contents[0]
-    ? result.contents[0]
-    : null;
+  const content =
+    result.contents[0] && "text" in result.contents[0]
+      ? result.contents[0]
+      : null;
 
   assert(content !== null, `${label} did not return text content.`);
   return content;

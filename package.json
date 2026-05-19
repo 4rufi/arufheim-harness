@@ -1,18 +1,18 @@
 {
-  "name": "arufheim-hermess",
-  "version": "0.1.1",
+  "name": "arufheim-harness",
+  "version": "0.0.8",
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "hermess-mcp": "node dist/index.js",
+    "harness-mcp": "node dist/index.js",
     "smoke": "node scripts/smoke-stdio.mjs",
     "test": "node scripts/smoke-stdio.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify": "pnpm typecheck && pnpm build && pnpm smoke"
   },
   "bin": {
-    "arufheim-hermess": "./dist/index.js"
+    "arufheim-harness": "./dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.2",

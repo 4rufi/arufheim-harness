@@ -25,15 +25,15 @@ if [ ! -x "$PNPM_RUNNER" ]; then
   exit 1
 fi
 
-if ! PNPM_VERSION="$("$PNPM_RUNNER" --version 2>/tmp/hermess_pnpm_error.log)"; then
-  fail "$(cat /tmp/hermess_pnpm_error.log)"
+if ! PNPM_VERSION="$("$PNPM_RUNNER" --version 2>/tmp/harness_pnpm_error.log)"; then
+  fail "$(cat /tmp/harness_pnpm_error.log)"
   exit 1
 fi
 ok "pnpm -> ${PNPM_VERSION}"
 
 echo ""
 echo "── 2. Verificando archivos base del arnés ─────────────"
-for f in AGENTS.md CLAUDE.md CHECKPOINTS.md feature_list.json hermess.config.json docs/architecture.md docs/conventions.md docs/specs.md docs/verification.md progress/current.md progress/history.md; do
+for f in AGENTS.md CLAUDE.md CHECKPOINTS.md feature_list.json harness.config.json docs/architecture.md docs/conventions.md docs/specs.md docs/verification.md progress/README.md progress/current.md progress/history.md; do
   if [ ! -f "$f" ]; then
     fail "Falta archivo base: $f"
     EXIT_CODE=1
@@ -115,7 +115,71 @@ try {
     }
   }
 
+  const progressEntries = fs.readdirSync("progress");
+  const allowedProgressEntries = [
+    /^README\.md$/,
+    /^current\.md$/,
+    /^history\.md$/,
+    /^explore_[a-z0-9_]+\.md$/,
+    /^impl_[a-z0-9_]+\.md$/,
+    /^review_[a-z0-9_]+\.md$/,
+    /^spec_[a-z0-9_]+\.md$/
+  ];
+
+  for (const entry of progressEntries) {
+    if (!allowedProgressEntries.some((pattern) => pattern.test(entry))) {
+      console.log(`[FAIL] progress/${entry} no sigue una convención soportada`);
+      process.exit(1);
+    }
+  }
+
+  const currentText = fs.readFileSync(path.join("progress", "current.md"), "utf8");
+  const requiredCurrentSnippets = [
+    "# Sesión actual",
+    "- **Feature en curso:**",
+    "- **Inicio:**",
+    "- **Agente:**",
+    "## Plan",
+    "## Bitácora",
+    "## Próximo paso"
+  ];
+
+  for (const snippet of requiredCurrentSnippets) {
+    if (!currentText.includes(snippet)) {
+      console.log(`[FAIL] progress/current.md no contiene: ${snippet}`);
+      process.exit(1);
+    }
+  }
+
+  const currentHeadings = [...currentText.matchAll(/^##\s+(.+)$/gm)].map((match) =>
+    match[1].trim()
+  );
+  const expectedCurrentHeadings = ["Plan", "Bitácora", "Próximo paso"];
+
+  if (
+    currentHeadings.length !== expectedCurrentHeadings.length ||
+    currentHeadings.some((heading, index) => heading !== expectedCurrentHeadings[index])
+  ) {
+    console.log("[FAIL] progress/current.md debe usar solo las secciones canónicas: Plan, Bitácora y Próximo paso");
+    process.exit(1);
+  }
+
+  const historyText = fs.readFileSync(path.join("progress", "history.md"), "utf8");
+  const requiredHistorySnippets = [
+    "# Bitácora histórica (append-only)",
+    "No edites entradas anteriores. Solo añades al final.",
+    "---"
+  ];
+
+  for (const snippet of requiredHistorySnippets) {
+    if (!historyText.includes(snippet)) {
+      console.log(`[FAIL] progress/history.md no contiene: ${snippet}`);
+      process.exit(1);
+    }
+  }
+
   console.log(`[OK] Evidencia SDD presente para ${closedSddFeatures.length} features cerradas`);
+  console.log("[OK] Formato base de progress/ válido");
 } catch (error) {
   console.log(`[FAIL] feature_list.json inválido: ${error.message}`);
   process.exit(1);

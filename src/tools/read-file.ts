@@ -21,17 +21,30 @@ export function registerReadFileTool(
     "read_file",
     {
       title: "Read File",
-      description: "Read a UTF-8 text file relative to the repository root.",
+      description:
+        "Read a file within the repo. Use start_line/end_line to read sections and save tokens.",
       inputSchema: {
         path: z.string().min(1).describe("Relative path from repo root"),
+        start_line: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("First line to return (1-indexed, default: 1)"),
+        end_line: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("Last line to return (1-indexed, default: all)"),
       },
     },
-    async ({ path }) => {
+    async ({ path, start_line, end_line }) => {
       const startedAt = Date.now();
 
       await logger.log("tool_call_started", {
         tool: "read_file",
-        input: { path },
+        input: { path, start_line, end_line },
       });
 
       try {
@@ -40,14 +53,27 @@ export function registerReadFileTool(
           path,
         );
         const fileStats = await stat(absolutePath);
-        const content = await readFile(absolutePath, "utf8");
-        const truncated = content.length > MAX_FILE_CHARS;
+        const raw = await readFile(absolutePath, "utf8");
+
+        // Enforce char limit before line slicing
+        const truncatedBySize = raw.length > MAX_FILE_CHARS;
+        const content = truncatedBySize ? raw.slice(0, MAX_FILE_CHARS) : raw;
+
+        const allLines = content.split("\n");
+        const totalLines = allLines.length;
+
+        const from = Math.max(1, start_line ?? 1);
+        const to = Math.min(totalLines, end_line ?? totalLines);
+        const slice = allLines.slice(from - 1, to).join("\n");
 
         const result = {
           path,
           sizeBytes: fileStats.size,
-          truncated,
-          content: truncated ? content.slice(0, MAX_FILE_CHARS) : content,
+          totalLines,
+          startLine: from,
+          endLine: to,
+          truncatedBySize,
+          content: slice,
         };
 
         await logger.log("tool_call_finished", {
@@ -55,6 +81,9 @@ export function registerReadFileTool(
           ok: true,
           durationMs: Date.now() - startedAt,
           sizeBytes: fileStats.size,
+          totalLines,
+          startLine: from,
+          endLine: to,
         });
 
         return toSuccessResult(result);

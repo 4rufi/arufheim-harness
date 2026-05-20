@@ -1,0 +1,13 @@
+{
+  "project": "harness",
+  "description": "MCP server local para tools seguras sobre repositorios, envuelto en un harness SDD ligero.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_green_init_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "sdd_required_when": "feature has \"sdd\": true",
+    "scope_field": "opcional; usado por scoper para filtrar features por proyecto"
+  },
+  "features": []
+}

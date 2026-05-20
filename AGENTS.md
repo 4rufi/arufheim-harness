@@ -1,67 +1,52 @@
 # AGENTS.md
 
-Este archivo es el punto de entrada para cualquier agente que trabaje en harness. No es una biblia de reglas; es un mapa.
+Mapa operativo del repo.
 
-## Antes de empezar
+## Arranque
 
-1. Ejecuta `./init.sh`. Si falla, paras y resuelves el entorno antes de tocar código.
-2. Lee `progress/current.md` para ver el estado de la sesión anterior.
-3. Si vas a tocar el flujo de sesión o artifacts de progreso, lee `progress/README.md`.
-4. Lee `feature_list.json`.
-5. Si la feature activa tiene `"sdd": true`, lee `docs/specs.md` antes de tocar specs o código.
+1. Corre `./init.sh`.
+2. Lee `.harness/progress/current.md`.
+3. Lee `.harness/feature_list.json`.
+4. Lee `.harness/progress/README.md` solo si vas a tocar el flujo de sesión.
+5. Si la feature activa tiene `"sdd": true`, lee `.harness-docs/specs.md`.
+6. Si estás decidiendo si una feature nueva usa SDD, lee `.harness-docs/specs_policy.md`.
 
-## Mapa del repo
+## Leer solo si hace falta
 
-| Ruta                              | Qué contiene                                                                       | Cuándo leerla                        |
-| --------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------ |
-| `feature_list.json`               | Lista de features y su estado                                                      | Siempre                              |
-| `progress/README.md`              | Contrato de `progress/` y plantillas canónicas                                     | Si tocas el flujo de sesión          |
-| `progress/current.md`             | Estado vivo de la sesión; solo usa `Plan`, `Bitácora` y `Próximo paso`             | Siempre                              |
-| `progress/history.md`             | Bitácora append-only de sesiones cerradas                                          | Si necesitas contexto                |
-| `progress/explore_<topic>.md`     | Notas de discovery o exploración que sustentan una decisión                        | Si arrancas con análisis             |
-| `specs/<feature>/`                | `requirements.md`, `design.md`, `tasks.md`                                         | Antes de implementar una feature SDD |
-| `docs/architecture.md`            | Restricciones y modelo del sistema                                                 | Antes de diseñar                     |
-| `docs/conventions.md`             | Estilo, naming y reglas de edición                                                 | Antes de escribir código             |
-| `docs/specs.md`                   | Flujo SDD y formato de specs                                                       | Antes de redactar o revisar specs    |
-| `docs/verification.md`            | Cómo demostrar que el cambio funciona                                              | Antes de cerrar                      |
-| `CHECKPOINTS.md`                  | Criterios objetivos de salida correcta                                             | Para autoevaluación                  |
-| `.claude/agents/`                 | Roles `leader`, `spec_author`, `implementer`, `reviewer`, `inbox_reader`, `scoper` | Si orquestas subagentes              |
-| `.github/prompts/`                | Prompts equivalentes para GitHub Copilot                                           | Si trabajas desde Copilot            |
-| `.github/copilot-instructions.md` | Instrucciones base para Copilot                                                    | Si trabajas desde Copilot            |
-| `CLAUDE.md`                       | Punto de entrada operativo para Claude Code                                        | Si trabajas desde Claude             |
-| `CODEX.md`                        | Punto de entrada operativo para Codex                                              | Si trabajas desde Codex              |
-| `inbox/`                          | Requerimientos en bruto pendientes de procesar                                     | Si hay archivos nuevos del humano    |
-| `inbox/processed/`                | Archivos ya procesados por `inbox_reader`                                          | Solo referencia histórica            |
-| `progress/spec_<feature>.md`      | Bloqueo del `spec_author` cuando falta claridad para escribir un spec verificable  | Si una spec termina en `blocked`     |
-| `progress/impl_<feature>.md`      | Log del implementer: archivos tocados + trazabilidad R→verificación                | Antes de review                      |
-| `progress/review_<feature>.md`    | Log del reviewer: checklist + veredicto                                            | Para cerrar la feature               |
-| `src/`                            | Servidor MCP y tools                                                               | Para implementar                     |
-| `scripts/`                        | Smoke tests y utilidades de verificación                                           | Para validar                         |
+- `.harness/feature_history.json`: contexto histórico
+- `.harness/progress/history.md`: sesiones anteriores
+- `specs/<feature>/`: implementación SDD
+- `.harness-docs/architecture.md`: diseño
+- `.harness-docs/conventions.md`: edición/código
+- `.harness-docs/verification.md`: cierre
+- `CHECKPOINTS.md`: auto-review
+- `.harness/inbox/`: input nuevo
+- `.claude/agents/`, `.github/prompts/`, `CLAUDE.md`, `CODEX.md`: orquestación
 
 ## Reglas duras
 
 - Una sola feature en `in_progress`.
-- No cierres una feature sin `./init.sh` en verde.
+- No cierres nada sin `./init.sh` verde.
 - Toda feature con `"sdd": true` pasa por `pending -> spec_ready -> aprobación humana -> in_progress -> done`.
-- No inventes estado: actualiza `progress/current.md` mientras trabajas.
-- No rompas la plantilla de `progress/current.md`; usa `## Plan`, `## Bitácora` y `## Próximo paso`.
-- No escribas en `stdout` logs arbitrarios del servidor MCP; `stdout` es del protocolo.
-- Si te bloqueas, documéntalo en `progress/current.md` y usa `blocked`.
+- No inventes estado: actualiza `.harness/progress/current.md`.
+- No rompas la plantilla de `.harness/progress/current.md`.
+- No escribas logs arbitrarios a `stdout`.
+- Si te bloqueas, deja evidencia en `.harness/progress/current.md`.
 
-## Flujo completo
+## Flujo
 
 ```text
 [inbox_reader] -> pending
-[scoper]       -> filtra features por proyecto para la sesión
-pending        -> [spec_author] -> spec_ready -> HUMANO -> in_progress -> [implementer -> reviewer] -> done
+[scoper] -> filtra scope de sesión
+pending -> [spec_author] -> spec_ready -> HUMANO -> in_progress -> [implementer -> reviewer] -> done
 ```
 
-`inbox_reader` y `scoper` son opcionales; el flujo SDD es obligatorio para features con `"sdd": true`.
+`inbox_reader` y `scoper` son opcionales. SDD es obligatorio para features con `"sdd": true`.
 
-## Cierre de sesión
+## Cierre
 
 1. `./init.sh`
-2. Si acabaste la feature, actualiza `feature_list.json`
-3. Añade un resumen append-only a `progress/history.md` con `Agente`, `Plan`, `Cambios`, `Verificación` y `Cierre`
-4. Limpia `progress/current.md` dejando la plantilla canónica
-5. Conserva `explore_*.md`, `impl_*.md`, `review_*.md` y `spec_*.md` como evidencia
+2. Si acabaste la feature, actualiza backlog activo y archívala en `.harness/feature_history.json`
+3. Añade resumen a `.harness/progress/history.md`
+4. Limpia `.harness/progress/current.md`
+5. Conserva `explore_*.md`, `impl_*.md`, `review_*.md`, `spec_*.md`

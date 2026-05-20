@@ -1,6 +1,6 @@
 {
   "name": "arufheim-harness",
-  "version": "0.0.8",
+  "version": "0.0.16",
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
@@ -9,7 +9,7 @@
     "smoke": "node scripts/smoke-stdio.mjs",
     "test": "node scripts/smoke-stdio.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "pnpm typecheck && pnpm build && pnpm smoke"
+    "verify": "./scripts/pnpmw.sh typecheck && ./scripts/pnpmw.sh build && ./scripts/pnpmw.sh smoke"
   },
   "bin": {
     "arufheim-harness": "./dist/index.js"

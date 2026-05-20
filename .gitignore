@@ -1,5 +1,14 @@
 node_modules
 dist
-.harness
+.harness/*
+!.harness/feature_list.json
+!.harness/feature_history.json
+!.harness/progress/
+!.harness/progress/*.md
+!.harness/inbox/
+!.harness/inbox/README.md
+.harness/inbox/processed/
+.harness/logs/
+.harness/*.sqlite
 .DS_Store
 *.tsbuildinfo

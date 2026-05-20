@@ -1,4 +1,5 @@
-import { realpath } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { lstat, mkdir, open, realpath } from "node:fs/promises";
 import path from "node:path";
 
 export const DEFAULT_IGNORED = [
@@ -119,6 +120,67 @@ export function tokenizeCommand(command: string): string[] {
   }
 
   return tokens;
+}
+
+export async function openRepoWriteHandle(
+  repoPath: string,
+  targetPath: string,
+  append = false,
+) {
+  const absoluteTarget = await prepareRepoWriteTarget(repoPath, targetPath);
+  const noFollowFlag =
+    typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+  const flags =
+    fsConstants.O_WRONLY |
+    fsConstants.O_CREAT |
+    (append ? fsConstants.O_APPEND : fsConstants.O_TRUNC) |
+    noFollowFlag;
+
+  return open(absoluteTarget, flags, 0o666);
+}
+
+export async function prepareRepoWriteTarget(
+  repoPath: string,
+  targetPath: string,
+): Promise<string> {
+  if (path.isAbsolute(targetPath)) {
+    throw new Error("Only relative paths are allowed.");
+  }
+
+  const absoluteRepoPath = await realpath(path.resolve(repoPath));
+  const absoluteTarget = path.resolve(absoluteRepoPath, targetPath);
+
+  assertCanonicalPathWithinRepo(
+    absoluteRepoPath,
+    absoluteTarget,
+    targetPath,
+    "Blocked path traversal attempt",
+  );
+
+  const parentDir = path.dirname(absoluteTarget);
+  await mkdir(parentDir, { recursive: true });
+  const canonicalParent = await realpath(parentDir);
+
+  assertCanonicalPathWithinRepo(
+    absoluteRepoPath,
+    canonicalParent,
+    targetPath,
+    "Blocked symlink escape attempt",
+  );
+
+  try {
+    const stats = await lstat(absoluteTarget);
+    if (stats.isSymbolicLink()) {
+      throw new Error(`Blocked symlink escape attempt for '${targetPath}'.`);
+    }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return absoluteTarget;
 }
 
 function assertCanonicalPathWithinRepo(

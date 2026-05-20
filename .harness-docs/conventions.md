@@ -21,5 +21,5 @@
 
 ## Documentación
 
-- Si cambias flujo o restricciones, actualiza `README.md` y el doc relevante en `docs/`
+- Si cambias flujo o restricciones, actualiza `README.md` y el doc relevante en `.harness-docs/`
 - Si la feature es SDD, no codifiques antes de que exista su spec

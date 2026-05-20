@@ -32,14 +32,23 @@ export function registerRunCommandTool(
           .string()
           .min(1)
           .describe("Exact command present in allowedCommands"),
+        max_lines: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe(
+            "Max output lines to return (default: 100). Lower = fewer tokens.",
+          ),
       },
     },
-    async ({ command }) => {
+    async ({ command, max_lines = 100 }) => {
       const startedAt = Date.now();
 
       await logger.log("tool_call_started", {
         tool: "run_command",
-        input: { command },
+        input: { command, max_lines },
       });
 
       try {
@@ -53,11 +62,20 @@ export function registerRunCommandTool(
             maxBuffer: COMMAND_MAX_BUFFER_BYTES,
           });
 
+          const truncStdout = truncateLines(stdout, max_lines);
+          const truncStderr = truncateLines(stderr, max_lines);
+
           const result = {
             command,
-            stdout,
-            stderr,
+            stdout: truncStdout.text,
+            stderr: truncStderr.text,
             exitCode: 0,
+            ...(truncStdout.omitted > 0 && {
+              stdoutOmitted: truncStdout.omitted,
+            }),
+            ...(truncStderr.omitted > 0 && {
+              stderrOmitted: truncStderr.omitted,
+            }),
           };
 
           await logger.log("tool_call_finished", {
@@ -69,7 +87,20 @@ export function registerRunCommandTool(
 
           return toSuccessResult(result);
         } catch (error) {
-          const result = normalizeExecError(command, error);
+          const raw = normalizeExecError(command, error);
+          const truncStdout = truncateLines(raw.stdout, max_lines);
+          const truncStderr = truncateLines(raw.stderr, max_lines);
+          const result = {
+            ...raw,
+            stdout: truncStdout.text,
+            stderr: truncStderr.text,
+            ...(truncStdout.omitted > 0 && {
+              stdoutOmitted: truncStdout.omitted,
+            }),
+            ...(truncStderr.omitted > 0 && {
+              stderrOmitted: truncStderr.omitted,
+            }),
+          };
           await logger.log("tool_call_finished", {
             tool: "run_command",
             ok: false,
@@ -125,9 +156,7 @@ function buildCommandFailureMessage(
   return "Command execution failed.";
 }
 
-function isExecError(
-  error: unknown,
-): error is Error & {
+function isExecError(error: unknown): error is Error & {
   stdout?: string;
   stderr?: string;
   code?: string | number;
@@ -138,4 +167,18 @@ function isExecError(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function truncateLines(
+  text: string,
+  maxLines: number,
+): { text: string; omitted: number } {
+  const lines = text.split("\n");
+  if (lines.length <= maxLines) return { text, omitted: 0 };
+  return {
+    text:
+      lines.slice(0, maxLines).join("\n") +
+      `\n[+${lines.length - maxLines} líneas omitidas]`,
+    omitted: lines.length - maxLines,
+  };
 }

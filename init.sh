@@ -33,7 +33,7 @@ ok "pnpm -> ${PNPM_VERSION}"
 
 echo ""
 echo "── 2. Verificando archivos base del arnés ─────────────"
-for f in AGENTS.md CLAUDE.md CHECKPOINTS.md feature_list.json harness.config.json docs/architecture.md docs/conventions.md docs/specs.md docs/verification.md progress/README.md progress/current.md progress/history.md; do
+for f in AGENTS.md CLAUDE.md CHECKPOINTS.md harness.config.json .harness-docs/architecture.md .harness-docs/conventions.md .harness-docs/specs.md .harness-docs/specs_policy.md .harness-docs/verification.md .harness/feature_list.json .harness/feature_history.json .harness/progress/README.md .harness/progress/current.md .harness/progress/history.md; do
   if [ ! -f "$f" ]; then
     fail "Falta archivo base: $f"
     EXIT_CODE=1
@@ -49,9 +49,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 try {
-  const data = JSON.parse(fs.readFileSync("feature_list.json", "utf8"));
+  const data = JSON.parse(fs.readFileSync(".harness/feature_list.json", "utf8"));
+  const historyData = JSON.parse(fs.readFileSync(".harness/feature_history.json", "utf8"));
   const valid = new Set(["pending", "spec_ready", "in_progress", "done", "blocked"]);
   const inProgress = data.features.filter((feature) => feature.status === "in_progress");
+  const archivedFeatures = Array.isArray(historyData)
+    ? historyData
+    : Array.isArray(historyData.archived_features)
+      ? historyData.archived_features
+      : [];
 
   if (inProgress.length > 1) {
     console.log(`[FAIL] Hay ${inProgress.length} features en in_progress (máximo 1)`);
@@ -67,7 +73,7 @@ try {
 
     if (feature.sdd && requiresSpec.has(feature.status)) {
       const specDir = path.join("specs", feature.name);
-      for (const fileName of ["requirements.md", "design.md", "tasks.md"]) {
+      for (const fileName of ["requirements.md", "design.md", "tasks.md", "spec_summary.md"]) {
         if (!fs.existsSync(path.join(specDir, fileName))) {
           console.log(`[FAIL] Feature ${feature.id} (${feature.name}) en ${feature.status} sin ${specDir}/${fileName}`);
           process.exit(1);
@@ -76,16 +82,16 @@ try {
     }
   }
 
-  console.log(`[OK] feature_list.json válido (${data.features.length} features)`);
+  console.log(`[OK] .harness/feature_list.json válido (${data.features.length} features)`);
   console.log("[OK] Specs presentes para features SDD activas");
 
-  const closedSddFeatures = data.features.filter(
+  const closedSddFeatures = archivedFeatures.filter(
     (feature) => feature.sdd && feature.status === "done"
   );
 
   for (const feature of closedSddFeatures) {
-    const implPath = path.join("progress", `impl_${feature.name}.md`);
-    const reviewPath = path.join("progress", `review_${feature.name}.md`);
+    const implPath = path.join(".harness", "progress", `impl_${feature.name}.md`);
+    const reviewPath = path.join(".harness", "progress", `review_${feature.name}.md`);
 
     if (!fs.existsSync(implPath)) {
       console.log(`[FAIL] Feature ${feature.id} (${feature.name}) cerrada sin ${implPath}`);
@@ -109,13 +115,13 @@ try {
       process.exit(1);
     }
 
-    if (!/\bAPROBADO\b/i.test(reviewText)) {
-      console.log(`[FAIL] ${reviewPath} no contiene veredicto APROBADO`);
+    if (!/\b(APROBADO|APPROVED)\b/i.test(reviewText)) {
+      console.log(`[FAIL] ${reviewPath} no contiene veredicto APROBADO/APPROVED`);
       process.exit(1);
     }
   }
 
-  const progressEntries = fs.readdirSync("progress");
+  const progressEntries = fs.readdirSync(path.join(".harness", "progress"));
   const allowedProgressEntries = [
     /^README\.md$/,
     /^current\.md$/,
@@ -128,12 +134,12 @@ try {
 
   for (const entry of progressEntries) {
     if (!allowedProgressEntries.some((pattern) => pattern.test(entry))) {
-      console.log(`[FAIL] progress/${entry} no sigue una convención soportada`);
+      console.log(`[FAIL] .harness/progress/${entry} no sigue una convención soportada`);
       process.exit(1);
     }
   }
 
-  const currentText = fs.readFileSync(path.join("progress", "current.md"), "utf8");
+  const currentText = fs.readFileSync(path.join(".harness", "progress", "current.md"), "utf8");
   const requiredCurrentSnippets = [
     "# Sesión actual",
     "- **Feature en curso:**",
@@ -146,7 +152,7 @@ try {
 
   for (const snippet of requiredCurrentSnippets) {
     if (!currentText.includes(snippet)) {
-      console.log(`[FAIL] progress/current.md no contiene: ${snippet}`);
+      console.log(`[FAIL] .harness/progress/current.md no contiene: ${snippet}`);
       process.exit(1);
     }
   }
@@ -160,11 +166,11 @@ try {
     currentHeadings.length !== expectedCurrentHeadings.length ||
     currentHeadings.some((heading, index) => heading !== expectedCurrentHeadings[index])
   ) {
-    console.log("[FAIL] progress/current.md debe usar solo las secciones canónicas: Plan, Bitácora y Próximo paso");
+    console.log("[FAIL] .harness/progress/current.md debe usar solo las secciones canónicas: Plan, Bitácora y Próximo paso");
     process.exit(1);
   }
 
-  const historyText = fs.readFileSync(path.join("progress", "history.md"), "utf8");
+  const historyText = fs.readFileSync(path.join(".harness", "progress", "history.md"), "utf8");
   const requiredHistorySnippets = [
     "# Bitácora histórica (append-only)",
     "No edites entradas anteriores. Solo añades al final.",
@@ -173,7 +179,7 @@ try {
 
   for (const snippet of requiredHistorySnippets) {
     if (!historyText.includes(snippet)) {
-      console.log(`[FAIL] progress/history.md no contiene: ${snippet}`);
+      console.log(`[FAIL] .harness/progress/history.md no contiene: ${snippet}`);
       process.exit(1);
     }
   }
@@ -181,7 +187,7 @@ try {
   console.log(`[OK] Evidencia SDD presente para ${closedSddFeatures.length} features cerradas`);
   console.log("[OK] Formato base de progress/ válido");
 } catch (error) {
-  console.log(`[FAIL] feature_list.json inválido: ${error.message}`);
+  console.log(`[FAIL] .harness/feature_list.json inválido: ${error.message}`);
   process.exit(1);
 }
 JS

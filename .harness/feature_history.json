@@ -1,15 +1,5 @@
 {
-  "project": "harness",
-  "description": "MCP server local para tools seguras sobre repositorios, envuelto en un harness SDD ligero.",
-  "rules": {
-    "one_feature_at_a_time": true,
-    "require_green_init_to_close": true,
-    "require_approved_spec_to_implement": true,
-    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
-    "sdd_required_when": "feature has \"sdd\": true",
-    "scope_field": "opcional; usado por scoper para filtrar features por proyecto"
-  },
-  "features": [
+  "archived_features": [
     {
       "id": 1,
       "name": "config_path_override",
@@ -49,7 +39,7 @@
         "README y docs describen su riesgo y restricciones"
       ],
       "sdd": true,
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 4,
@@ -76,6 +66,44 @@
         "Si no hay `pnpm`, el error explica cómo instalarlo con `npm` o `yarn`",
         "La documentación del repo refleja el flujo de bootstrap"
       ],
+      "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "session_improvements_may19",
+      "title": "Mejoras de sesión: tokens, agents, frontmatter",
+      "description": "Compresión de templates en init.ts (~60% tokens), tools faltantes en agentes Copilot y Claude, fix de frontmatter mode→agent, actualización de copilot-instructions.md.",
+      "status": "done"
+    },
+    {
+      "id": 7,
+      "name": "init_sdd_agents",
+      "title": "Escribir agentes SDD al hacer init",
+      "description": "Extender `init` para escribir 6 archivos `.github/prompts/*.prompt.md` y un `AGENTS.md` mínimo adaptados al repo del usuario, sin referencias a archivos del repo harness.",
+      "acceptance": [
+        "`arufheim-harness init` escribe `.github/prompts/` con los 6 agentes (leader, implementer, reviewer, spec_author, inbox_reader, scoper)",
+        "Los prompts referencian solo archivos que `init` crea (`.harness/`, `feature_list.json`, `progress/`)",
+        "Se crea un `AGENTS.md` mínimo en el repo del usuario",
+        "`init --update` regenera los prompts si el marcador de versión cambió",
+        "Flag `--copilot` incluye los prompts; `--claude` los omite"
+      ],
+      "sdd": true,
+      "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "arufheim_memory",
+      "title": "Memoria selectiva estilo Engram",
+      "description": "Progressive disclosure en mem_search, dedup por topic_key, nueva tool mem_get y mem_context para arranque compacto.",
+      "acceptance": [
+        "mem_search devuelve resumen compacto por defecto; param full:true trae contenido",
+        "mem_save con mismo topic_key hace upsert en vez de append",
+        "mem_get devuelve entrada completa por id",
+        "mem_context devuelve top-N entradas relevantes para arranque",
+        "MemEntry soporta campos opcionales why, where, learned",
+        "Protocolo de arranque usa mem_context en prompts y scaffold de init"
+      ],
+      "sdd": true,
       "status": "done"
     }
   ]

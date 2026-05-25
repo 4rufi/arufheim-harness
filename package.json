@@ -1,8 +1,11 @@
 {
   "name": "arufheim-harness",
-  "version": "0.0.16",
+  "version": "1.0.0",
   "type": "module",
   "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "harness-mcp": "node dist/index.js",

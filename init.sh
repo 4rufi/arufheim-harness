@@ -33,7 +33,7 @@ ok "pnpm -> ${PNPM_VERSION}"
 
 echo ""
 echo "── 2. Verificando archivos base del arnés ─────────────"
-for f in AGENTS.md CLAUDE.md CHECKPOINTS.md harness.config.json .harness-docs/architecture.md .harness-docs/conventions.md .harness-docs/specs.md .harness-docs/specs_policy.md .harness-docs/verification.md .harness/feature_list.json .harness/feature_history.json .harness/progress/README.md .harness/progress/current.md .harness/progress/history.md; do
+for f in AGENTS.md CLAUDE.md CHECKPOINTS.md harness.config.json .harness-docs/architecture.md .harness-docs/conventions.md .harness-docs/specs.md .harness-docs/specs_policy.md .harness-docs/verification.md .harness-docs/model_interface.md .harness-docs/context_manager.md .harness-docs/execution_engine.md .harness-docs/memory_system.md .harness-docs/orchestration.md .harness-docs/tool_catalog.md .harness-docs/observation_policy.md .harness-docs/loop_contract.md .harness-docs/planning_model.md .harness-docs/budgets.md .harness-docs/contract_versions.md .harness-docs/frontend_adapters.md .harness/feature_list.json .harness/feature_history.json .harness/progress/README.md .harness/progress/current.md .harness/progress/history.md .opencode/opencode.json .opencode/commands/harness.md; do
   if [ ! -f "$f" ]; then
     fail "Falta archivo base: $f"
     EXIT_CODE=1

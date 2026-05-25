@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -6,7 +6,11 @@ import * as readline from "node:readline/promises";
 import {
   DEFAULT_CURRENT_MD,
   DEFAULT_HISTORY_MD,
+  parseFeatureHistoryText,
+  parseFeatureListText,
   resolveWorkflowPaths,
+  serializeFeatureHistory,
+  serializeFeatureList,
   type WorkflowPaths,
 } from "./workflow.js";
 
@@ -16,6 +20,8 @@ const COPILOT_INSTRUCTIONS_PATH = ".github/copilot-instructions.md";
 const CLAUDE_MD_PATH = "CLAUDE.md";
 const CLAUDE_AGENTS_DIR = ".claude/agents";
 const CLAUDE_COMMAND_PATH = ".claude/commands/harness.md";
+const OPENCODE_CONFIG_PATH = ".opencode/opencode.json";
+const OPENCODE_COMMAND_PATH = ".opencode/commands/harness.md";
 const HARNESS_DIR = ".harness";
 const FEATURE_LIST_PATH = ".harness/feature_list.json";
 const PROGRESS_DIR = ".harness/progress";
@@ -46,6 +52,11 @@ const DEFAULT_harness_CONFIG = {
     ".next/**",
     "build/**",
   ],
+  permissionPolicy: {
+    mode: "always_allow",
+    allowedTools: [],
+    allowedRisk: [],
+  },
 };
 
 const DEFAULT_MCP_JSON = {
@@ -55,6 +66,33 @@ const DEFAULT_MCP_JSON = {
       command: "npx",
       args: ["arufheim-harness", "--repo-path", "${workspaceFolder}"],
     },
+  },
+};
+
+const DEFAULT_OPENCODE_JSON = {
+  $schema: "https://opencode.ai/config.json",
+  mcp: {
+    "arufheim-harness": {
+      type: "local",
+      command: ["npx", "arufheim-harness", "--repo-path", "."],
+      enabled: true,
+    },
+  },
+  permission: {
+    "*": "ask",
+    read: "allow",
+    glob: "allow",
+    grep: "allow",
+    list: "allow",
+    "arufheim-harness_harness_status": "allow",
+    "arufheim-harness_harness_metrics": "allow",
+    "arufheim-harness_list_files": "allow",
+    "arufheim-harness_read_file": "allow",
+    "arufheim-harness_search_repo": "allow",
+    "arufheim-harness_mem_context": "allow",
+    "arufheim-harness_mem_search": "allow",
+    "arufheim-harness_mem_get": "allow",
+    "arufheim-harness_mem_get_observation": "allow",
   },
 };
 
@@ -950,6 +988,18 @@ const DOCS_CONVENTIONS_PATH = ".harness-docs/conventions.md";
 const DOCS_SPECS_PATH = ".harness-docs/specs.md";
 const DOCS_SPECS_POLICY_PATH = ".harness-docs/specs_policy.md";
 const DOCS_VERIFICATION_PATH = ".harness-docs/verification.md";
+const DOCS_MODEL_INTERFACE_PATH = ".harness-docs/model_interface.md";
+const DOCS_CONTEXT_MANAGER_PATH = ".harness-docs/context_manager.md";
+const DOCS_EXECUTION_ENGINE_PATH = ".harness-docs/execution_engine.md";
+const DOCS_MEMORY_SYSTEM_PATH = ".harness-docs/memory_system.md";
+const DOCS_ORCHESTRATION_PATH = ".harness-docs/orchestration.md";
+const DOCS_TOOL_CATALOG_PATH = ".harness-docs/tool_catalog.md";
+const DOCS_OBSERVATION_POLICY_PATH = ".harness-docs/observation_policy.md";
+const DOCS_PLANNING_MODEL_PATH = ".harness-docs/planning_model.md";
+const DOCS_BUDGETS_PATH = ".harness-docs/budgets.md";
+const DOCS_CONTRACT_VERSIONS_PATH = ".harness-docs/contract_versions.md";
+const DOCS_FRONTEND_ADAPTERS_PATH = ".harness-docs/frontend_adapters.md";
+const DOCS_LOOP_CONTRACT_PATH = ".harness-docs/loop_contract.md";
 const CHECKPOINTS_PATH = "CHECKPOINTS.md";
 
 const SCAFFOLD_PROGRESS_README_CONTENT = `# Progress
@@ -1093,6 +1143,482 @@ cambio: tests, build, lint, typecheck o equivalente del stack.
 - una feature no pasa a \`done\` con verificación roja o faltante
 `;
 
+const SCAFFOLD_MODEL_INTERFACE_DOC_CONTENT = `# Model Interface
+
+Define el contrato común entre el arnés y cada frontend (\`Codex\`,
+\`Claude\`, \`Copilot\`).
+
+## Qué es común
+
+- arranque con \`harness_status({ mode: "brief_only" })\`
+- uso de \`startup_brief\` como snapshot inicial
+- \`mem_context\` antes de abrir más archivos
+- paths canónicos en \`.harness/\` y \`.harness-docs/\`
+- artefactos de salida en \`specs/\` y \`.harness/progress/\`
+
+## Qué puede variar por frontend
+
+- sintaxis de tool call
+- formato de prompts/agentes
+- integración MCP local
+- estilo de respuesta al humano
+
+## Startup contract v1
+
+1. \`startup_brief\`
+2. \`mem_context\`
+3. paths canónicos del repo
+4. solo después, archivos adicionales mínimos
+
+## Regla
+
+El flujo central no depende de un modelo específico. Las diferencias viven en
+adapters/prompts, no en el contrato base.
+`;
+
+const SCAFFOLD_CONTEXT_MANAGER_DOC_CONTENT = `# Context Manager
+
+Decide qué entra al contexto y cuándo.
+
+## Niveles
+
+1. \`brief\`
+   - \`startup_brief\`
+   - \`mem_context\`
+2. \`summary\`
+   - \`spec_summary.md\`
+   - \`{{currentPath}}\`
+3. \`full\`
+   - \`requirements.md\`
+   - \`tasks.md\`
+   - \`design.md\` solo si hace falta
+4. \`code\`
+   - archivos tocados
+   - verificación relevante
+
+## Regla de escalado
+
+- no abras backlog completo si \`startup_brief\` alcanza
+- no abras \`design.md\` si \`spec_summary.md\` resuelve la tarea
+- no abras historial salvo bloqueo o duda real
+- si una lectura no cambia la decisión siguiente, no era necesaria
+
+## Qué no se lee por defecto
+
+- \`{{featureHistoryPath}}\`
+- \`{{historyPath}}\`
+- memoria completa
+- specs completas de otras features
+`;
+
+const SCAFFOLD_EXECUTION_ENGINE_DOC_CONTENT = `# Execution Engine
+
+Define cómo se ejecutan tools y comandos.
+
+## Principios
+
+- seguridad antes que conveniencia
+- resultados estructurados antes que texto libre
+- timeouts explícitos
+- retries limitados
+- si el output no cambia, no seguir insistiendo
+
+## Retry policy v1
+
+- máximo \`2\` reintentos equivalentes
+- si un retry falla igual, escala contexto o cambia estrategia
+- si tras escalar sigue fallando, marca \`blocked\`
+
+## Blocked policy v1
+
+Marca \`blocked\` cuando:
+
+- falta información esencial
+- la verificación relevante sigue roja tras retries razonables
+- una tool necesaria falla de forma persistente
+- completar la task exige desviarse del spec aprobado
+
+## Observation contract v1
+
+- \`action\`: qué se intentó
+- \`result\`: qué pasó
+- \`error\`: qué falló, si aplica
+- \`next_hint\`: qué probar después
+`;
+
+const SCAFFOLD_LOOP_CONTRACT_DOC_CONTENT = `# Loop Contract
+
+Define el loop operativo del agente sin convertir el arnés en un runtime de
+chat.
+
+## Loop contract v1
+
+1. \`request\`
+2. \`observe\`
+3. \`decide\`
+4. \`act\`
+5. \`retry\` o \`block\`
+
+## Request
+
+- parte desde \`startup_brief\`
+- trae \`mem_context\` solo si hace falta contexto reusable
+- abre archivos adicionales solo cuando el brief no alcanza
+
+## Observe
+
+- usa \`observation contract v1\`
+- registra solo señal útil
+- no dupliques outputs largos si no cambian la decisión
+
+## Decide
+
+- si la observación trae señal nueva, ajusta estrategia
+- si no trae señal nueva, no repitas la misma acción
+- si falta contexto, escala a \`summary\`, spec completa o código
+
+## Act
+
+- prioriza tools seguras y resultados estructurados
+- respeta \`PermissionPolicy\`
+- respeta \`action budget v1\`
+
+## Retry
+
+- máximo \`2\` retries equivalentes
+- un retry equivalente requiere cambiar comando, contexto o hipótesis
+- si el resultado es igual, no cuenta como progreso
+
+## Block
+
+Marca \`blocked\` cuando:
+
+- falta información esencial
+- el output no mejora tras retries razonables
+- una tool necesaria falla de forma persistente
+- seguir exige desviarse del spec o del contrato aprobado
+
+## Regla
+
+Hermess define el contrato del loop, no un engine propio de provider. Claude,
+Codex, Copilot u OpenCode ejecutan ese loop con el mismo contrato operativo.
+`;
+
+const SCAFFOLD_MEMORY_SYSTEM_DOC_CONTENT = `# Memory System
+
+La memoria existe para recuperar solo contexto relevante, no para guardar toda
+la sesión cruda.
+
+## Tipos
+
+- episódica: decisiones y eventos concretos
+- semántica: hechos o restricciones estables del repo
+- resumen de sesión: cierre compacto de una sesión
+- observación puntual: detalle recuperable con \`mem_get_observation\`
+
+## Tools
+
+- \`mem_context\`: snapshot corto para arranque
+- \`mem_search\`: búsqueda por relevancia
+- \`mem_get_observation\`: detalle puntual
+- \`mem_save\`: memoria estructurada (\`what/why/where/learned\`)
+- \`mem_session_summary\`: cierre compacto de sesión
+
+## Reglas
+
+- no guardar raw tool spam
+- usa \`topic_key\` si el tema evoluciona
+- resume antes de duplicar
+- si una memoria no ayuda a decidir algo futuro, no la guardes
+- prefiere \`mem_session_summary\` para cierres y \`mem_save\` para decisiones puntuales
+- no uses memoria como reemplazo de \`progress/\` o del spec actual
+
+## Retrieval contract v1
+
+1. \`mem_context\`
+2. \`mem_search\` solo si falta contexto
+3. \`mem_get_observation\` solo si hace falta detalle
+
+## Save policy v1
+
+- \`mem_save\`: una decisión, fix o hallazgo reusable
+- \`mem_session_summary\`: resumen final de sesión
+- \`topic_key\`: cuando actualizas el mismo tema en vez de abrir otro hilo
+
+## Budget
+
+- una memoria debe comprimir, no duplicar
+- si el mismo tema ya existe y solo cambió un detalle, actualiza
+- si una sesión deja muchas observaciones sueltas, resume y cierra
+`;
+
+const SCAFFOLD_ORCHESTRATION_DOC_CONTENT = `# Orchestration
+
+Define cómo se reparten trabajo y responsabilidades entre agentes.
+
+## Roles base
+
+- \`leader\`: decide flujo y mueve estados
+- \`spec_author\`: redacta spec
+- \`implementer\`: implementa una sola feature
+- \`reviewer\`: aprueba o rechaza
+- \`inbox_reader\`: convierte input crudo en features
+- \`scoper\`: acota el scope de sesión
+
+## Handoff contract v1
+
+- \`spec_author\`
+  - output: \`spec_ready -> specs/<name>/\`
+- \`implementer\`
+  - output: \`done -> .harness/progress/impl_<name>.md\`
+  - o \`blocked -> .harness/progress/impl_<name>.md\`
+- \`reviewer\`
+  - output: \`APPROVED -> .harness/progress/review_<name>.md\`
+  - o \`CHANGES_REQUESTED -> .harness/progress/review_<name>.md\`
+
+## Reglas
+
+- una sola feature en \`in_progress\`
+- solo \`leader\` cambia \`{{featureListPath}}\`
+- resultados largos viven en archivos, no en chat
+- si un handoff no deja artifact, el handoff falló
+`;
+
+const SCAFFOLD_TOOL_CATALOG_DOC_CONTENT = `# Tool Catalog
+
+Agrupa las tools del arnés por dominio y riesgo.
+
+## workflow
+
+- \`harness_status\`
+- \`harness_update\`
+- \`harness_add\`
+- \`harness_log\`
+- \`harness_metrics\`
+- \`progress_set_plan\`
+- \`progress_next_step\`
+- \`history_append\`
+- \`inbox_list\`
+- \`inbox_consume\`
+
+## memory
+
+- \`mem_context\`
+- \`mem_search\`
+- \`mem_get_observation\`
+- \`mem_save\`
+- \`mem_session_summary\`
+
+## repo
+
+- \`read_file\`
+- \`list_files\`
+- \`search_repo\`
+- \`write_file\`
+
+## execution
+
+- \`run_command\`
+
+## resources / diagnostics
+
+- \`doctor\`
+- \`help\`
+- \`tui\` (estado, policy y métricas locales)
+
+## Risk classes v1
+
+- \`R0 read-only\`
+- \`R1 local structured mutation\`
+- \`R2 local content mutation\`
+- \`R3 command execution / external side effect\`
+
+## Regla
+
+- empieza por \`R0\`
+- sube de riesgo solo si hace falta
+- si una acción \`R2\` o \`R3\` falla sin señal nueva, no la repitas en loop
+`;
+
+const SCAFFOLD_OBSERVATION_POLICY_DOC_CONTENT = `# Observation Policy
+
+Define cómo se registra el resultado de una acción para que el loop de trabajo
+pueda decidir el siguiente paso.
+
+## Observation contract v1
+
+Toda observación útil responde:
+
+- \`action\`: qué se intentó
+- \`result\`: qué pasó
+- \`error\`: qué falló, si aplica
+- \`next_hint\`: qué conviene intentar después
+
+## Calidad mínima
+
+- concreta, no narrativa
+- basada en output real
+- comparable con la observación anterior
+- corta; si hace falta detalle, va al artifact correspondiente
+
+## Retry guidance
+
+- si la observación nueva es sustancialmente igual a la anterior, no seguir igual
+- tras \`2\` retries equivalentes, cambia estrategia o escala contexto
+- si el output no mejora tras escalar, marca \`blocked\`
+
+## Dónde vive
+
+- estado vivo: \`{{currentPath}}\`
+- evidencia larga: \`.harness/progress/impl_<name>.md\`, \`.harness/progress/review_<name>.md\`
+- memoria reusable: \`mem_save\` o \`mem_session_summary\`
+`;
+
+const SCAFFOLD_PLANNING_MODEL_DOC_CONTENT = `# Planning Model
+
+El arnés soporta tres modos de planificación.
+
+## 1. simple / reactive
+
+Usa este modo cuando:
+
+- el cambio es local y obvio
+- no requiere spec
+- una sola persona/agente puede cerrarlo de punta a punta
+
+## 2. SDD
+
+Usa este modo cuando la feature tiene \`sdd: true\`.
+
+Flujo:
+
+\`\`\`text
+pending -> spec_ready -> aprobación humana -> in_progress -> done
+\`\`\`
+
+Úsalo cuando implementar mal cuesta más que escribir el spec.
+
+## 3. orchestration
+
+Usa este modo cuando hace falta dividir trabajo entre roles:
+
+- \`leader\`
+- \`spec_author\`
+- \`implementer\`
+- \`reviewer\`
+- opcionalmente \`inbox_reader\` y \`scoper\`
+
+## Regla de selección
+
+- \`0\` criterios de SDD y cambio local: \`simple\`
+- \`sdd: true\`: \`SDD\`
+- múltiples roles, handoffs o coordinación explícita: \`orchestration\`
+
+## Regla operativa
+
+No mezclar modos sin decirlo. El modo activo debe ser evidente desde el estado
+de la feature y los artifacts que produce.
+`;
+
+const SCAFFOLD_BUDGETS_DOC_CONTENT = `# Budgets
+
+Los budgets existen para evitar loops ruidosos, inflación de memoria y gasto
+innecesario de tokens.
+
+## Action budget v1
+
+- máximo \`2\` retries equivalentes para la misma acción
+- máximo \`1\` escalado de contexto antes de decidir
+- si una acción \`R2\` o \`R3\` no da señal nueva tras retries razonables, parar
+- si el trabajo real requiere más intentos, documenta por qué en \`progress/\`
+
+## Memory budget v1
+
+- una memoria nueva debe comprimir o consolidar
+- si el mismo tema ya existe, usar \`topic_key\` y actualizar
+- preferir \`mem_session_summary\` al cierre en vez de muchas observaciones sueltas
+- no convertir memoria en bitácora cruda del trabajo
+
+## Context budget v1
+
+- arranca con \`brief\`
+- sube a \`summary\` o \`full\` solo si la siguiente decisión lo exige
+- no abras historial, diseño o memoria larga “por si acaso”
+`;
+
+const SCAFFOLD_CONTRACT_VERSIONS_DOC_CONTENT = `# Contract Versions
+
+Versiona los contratos del arnés para evitar drift entre docs, scaffold y
+prompts.
+
+## Versiones actuales
+
+- \`startup contract v1\`
+- \`handoff contract v1\`
+- \`loop contract v1\`
+- \`observation contract v1\`
+- \`retrieval contract v1\`
+- \`retry policy v1\`
+- \`blocked policy v1\`
+- \`risk classes v1\`
+
+## Regla
+
+Si cambias un contrato de forma incompatible:
+
+1. sube la versión
+2. actualiza docs relacionadas
+3. actualiza \`src/init.ts\`
+4. actualiza \`smoke\` y \`doctor\` si aplica
+`;
+
+const SCAFFOLD_FRONTEND_ADAPTERS_DOC_CONTENT = `# Frontend Adapters
+
+Describe qué parte del arnés es común y qué parte depende del cliente.
+
+## Core común
+
+- layout en \`.harness/\` y \`.harness-docs/\`
+- \`startup_brief\`
+- \`mem_context\`
+- artifacts en \`specs/\` y \`.harness/progress/\`
+- contracts versionados del arnés
+
+## Claude
+
+- usa \`CLAUDE.md\`
+- roles en \`.claude/agents/\`
+- comando corto en \`.claude/commands/harness.md\`
+
+## Codex
+
+- usa \`CODEX.md\`
+- mismo flujo central del \`leader\`
+- adapta tono/herramientas al runtime Codex
+
+## Copilot
+
+- usa \`.github/copilot-instructions.md\`
+- prompts en \`.github/prompts/\`
+- mismas transiciones y artifacts que Claude/Codex
+
+## OpenCode
+
+- usa \`.opencode/opencode.json\`
+- comando corto en \`.opencode/commands/harness.md\`
+- puede usar MCP e instructions del repo
+- puede mapear permisos por tool o wildcard
+- puede usar agents/subagents según frontend
+- billed tokens del provider pueden o no estar expuestos al arnés
+
+## Capability matrix
+
+- MCP: Claude / Codex / Copilot / OpenCode = sí
+- startup contract del arnés: sí
+- permission policy local del harness: sí
+- metrics de tokens facturados por provider: depende del frontend
+`;
+
 const SCAFFOLD_CHECKPOINTS_CONTENT = `# CHECKPOINTS
 
 Un cambio está realmente listo solo si:
@@ -1226,6 +1752,29 @@ No narres pasos internos. Muestra resultado, no proceso.
 - Si te bloqueas, deja el estado en \`{{currentPath}}\` antes de cerrar.
 `;
 
+const SCAFFOLD_OPENCODE_COMMAND_TEMPLATE = `# Harness
+
+Arranque de sesión del repo:
+
+1. Llama \`harness_status\` con \`mode: "brief_only"\`.
+2. Usa \`startup_brief\` como snapshot inicial.
+3. Si la feature activa existe, trae \`mem_context\` compacto antes de abrir más archivos.
+4. Lee solo los archivos mínimos que falten para el caso actual.
+
+Resumen corto esperado:
+
+- feature activa
+- próximo paso
+- inbox pendiente
+- bloqueo, si existe
+
+Reglas:
+
+- no saltes SDD cuando la feature tenga \`"sdd": true\`
+- no declares \`done\` sin verificación ejecutable
+- si te bloqueas, deja el motivo en \`{{currentPath}}\`
+`;
+
 const SCAFFOLD_AGENTS_MD_TEMPLATE = `# AGENTS.md
 
 Mapa operativo del repo.
@@ -1247,6 +1796,7 @@ Mapa operativo del repo.
 - \`.harness-docs/architecture.md\`: diseño
 - \`.harness-docs/conventions.md\`: edición/código
 - \`.harness-docs/verification.md\`: cierre
+- \`.harness-docs/model_interface.md\`, \`.harness-docs/context_manager.md\`, \`.harness-docs/execution_engine.md\`, \`.harness-docs/memory_system.md\`, \`.harness-docs/orchestration.md\`, \`.harness-docs/tool_catalog.md\`, \`.harness-docs/observation_policy.md\`, \`.harness-docs/planning_model.md\`, \`.harness-docs/loop_contract.md\`: solo si cambias el propio arnés
 - \`CHECKPOINTS.md\`: auto-review
 - \`{{inboxDir}}/\`: input nuevo
 - \`.claude/agents/\`, \`.github/prompts/\`, \`CLAUDE.md\`, \`CODEX.md\`: orquestación
@@ -1990,12 +2540,21 @@ interface InitOptions {
   repoPath: string;
   global?: boolean;
   update?: boolean;
-  target?: "all" | "claude" | "copilot";
+  target?: "all" | "claude" | "copilot" | "opencode";
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await readFile(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath);
     return true;
   } catch {
     return false;
@@ -2034,10 +2593,128 @@ async function patchIfMissing(
   console.log(`  patch ${label}`);
 }
 
+async function copyIfPresent(
+  fromPath: string,
+  toPath: string,
+  label: string,
+): Promise<void> {
+  if (!(await fileExists(fromPath)) || (await fileExists(toPath))) {
+    return;
+  }
+  await mkdir(path.dirname(toPath), { recursive: true });
+  await copyFile(fromPath, toPath);
+  console.log(`  migrate ${label}`);
+}
+
+async function copyDirContentsIfPresent(
+  fromDir: string,
+  toDir: string,
+  label: string,
+): Promise<void> {
+  if (!(await pathExists(fromDir))) {
+    return;
+  }
+  await mkdir(toDir, { recursive: true });
+  const entries = await readdir(fromDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fromPath = path.join(fromDir, entry.name);
+    const toPath = path.join(toDir, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirContentsIfPresent(fromPath, toPath, label);
+      continue;
+    }
+    if (await fileExists(toPath)) {
+      continue;
+    }
+    await copyFile(fromPath, toPath);
+  }
+  console.log(`  migrate ${label}`);
+}
+
+async function migrateLegacyRootLayout(repoPath: string): Promise<void> {
+  const legacyFeatureListPath = path.join(repoPath, "feature_list.json");
+  const hiddenFeatureListPath = path.join(repoPath, ".harness/feature_list.json");
+  if (await fileExists(legacyFeatureListPath)) {
+    const raw = await readFile(legacyFeatureListPath, "utf8");
+    const normalized = serializeFeatureList(parseFeatureListText(raw));
+    if (!(await fileExists(hiddenFeatureListPath))) {
+      await mkdir(path.dirname(hiddenFeatureListPath), { recursive: true });
+      await writeFile(hiddenFeatureListPath, normalized, "utf8");
+      console.log("  migrate feature_list.json -> .harness/feature_list.json");
+    }
+  }
+
+  const legacyFeatureHistoryPath = path.join(repoPath, "feature_history.json");
+  const hiddenFeatureHistoryPath = path.join(
+    repoPath,
+    ".harness/feature_history.json",
+  );
+  if (await fileExists(legacyFeatureHistoryPath)) {
+    const raw = await readFile(legacyFeatureHistoryPath, "utf8");
+    const normalized = serializeFeatureHistory(parseFeatureHistoryText(raw));
+    if (!(await fileExists(hiddenFeatureHistoryPath))) {
+      await mkdir(path.dirname(hiddenFeatureHistoryPath), { recursive: true });
+      await writeFile(hiddenFeatureHistoryPath, normalized, "utf8");
+      console.log(
+        "  migrate feature_history.json -> .harness/feature_history.json",
+      );
+    }
+  }
+
+  await copyIfPresent(
+    path.join(repoPath, "progress/README.md"),
+    path.join(repoPath, ".harness/progress/README.md"),
+    "progress/README.md -> .harness/progress/README.md",
+  );
+  await copyIfPresent(
+    path.join(repoPath, "progress/current.md"),
+    path.join(repoPath, ".harness/progress/current.md"),
+    "progress/current.md -> .harness/progress/current.md",
+  );
+  await copyIfPresent(
+    path.join(repoPath, "progress/history.md"),
+    path.join(repoPath, ".harness/progress/history.md"),
+    "progress/history.md -> .harness/progress/history.md",
+  );
+  await copyDirContentsIfPresent(
+    path.join(repoPath, "inbox"),
+    path.join(repoPath, ".harness/inbox"),
+    "inbox/ -> .harness/inbox/",
+  );
+
+  const docNames = [
+    "architecture.md",
+    "conventions.md",
+    "specs.md",
+    "specs_policy.md",
+    "verification.md",
+    "model_interface.md",
+    "context_manager.md",
+    "execution_engine.md",
+    "memory_system.md",
+    "orchestration.md",
+    "tool_catalog.md",
+    "observation_policy.md",
+    "planning_model.md",
+    "budgets.md",
+    "contract_versions.md",
+    "frontend_adapters.md",
+    "loop_contract.md",
+  ];
+
+  for (const docName of docNames) {
+    await copyIfPresent(
+      path.join(repoPath, "docs", docName),
+      path.join(repoPath, ".harness-docs", docName),
+      `docs/${docName} -> .harness-docs/${docName}`,
+    );
+  }
+}
+
 async function runInitLocal(
   repoPath: string,
   update = false,
-  target: "all" | "claude" | "copilot" = "all",
+  target: "all" | "claude" | "copilot" | "opencode" = "all",
 ): Promise<void> {
   const verb = update ? "Actualizando" : "Inicializando";
   const targetLabel =
@@ -2045,13 +2722,21 @@ async function runInitLocal(
       ? " [Claude]"
       : target === "copilot"
         ? " [GitHub/Copilot]"
+        : target === "opencode"
+          ? " [OpenCode]"
         : "";
   console.log(`\n${verb} harness${targetLabel} en: ${repoPath}\n`);
 
   const writeInfra = true;
   const writeGithub = target === "all" || target === "copilot";
   const writeClaude = target === "all" || target === "claude";
-  const workflowPaths = await resolveWorkflowPaths(repoPath);
+  const writeOpenCode = target === "all" || target === "opencode";
+  let workflowPaths = await resolveWorkflowPaths(repoPath);
+  if (update && workflowPaths.layout === "root-legacy") {
+    console.log("  detect legacy layout -> migrando a .harness/");
+    await migrateLegacyRootLayout(repoPath);
+    workflowPaths = await resolveWorkflowPaths(repoPath);
+  }
   const progressReadmePath = progressReadmePathFor(workflowPaths);
   const inboxReadmePath = inboxReadmePathFor(workflowPaths);
   const githubPrompts = scaffoldGithubPrompts(workflowPaths);
@@ -2150,6 +2835,69 @@ async function runInitLocal(
       DOCS_VERIFICATION_PATH,
     );
     await writeIfAbsent(
+      path.join(repoPath, DOCS_MODEL_INTERFACE_PATH),
+      SCAFFOLD_MODEL_INTERFACE_DOC_CONTENT,
+      DOCS_MODEL_INTERFACE_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_CONTEXT_MANAGER_PATH),
+      renderWorkflowTemplate(SCAFFOLD_CONTEXT_MANAGER_DOC_CONTENT, workflowPaths),
+      DOCS_CONTEXT_MANAGER_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_EXECUTION_ENGINE_PATH),
+      SCAFFOLD_EXECUTION_ENGINE_DOC_CONTENT,
+      DOCS_EXECUTION_ENGINE_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_MEMORY_SYSTEM_PATH),
+      SCAFFOLD_MEMORY_SYSTEM_DOC_CONTENT,
+      DOCS_MEMORY_SYSTEM_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_ORCHESTRATION_PATH),
+      renderWorkflowTemplate(SCAFFOLD_ORCHESTRATION_DOC_CONTENT, workflowPaths),
+      DOCS_ORCHESTRATION_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_TOOL_CATALOG_PATH),
+      SCAFFOLD_TOOL_CATALOG_DOC_CONTENT,
+      DOCS_TOOL_CATALOG_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_OBSERVATION_POLICY_PATH),
+      renderWorkflowTemplate(
+        SCAFFOLD_OBSERVATION_POLICY_DOC_CONTENT,
+        workflowPaths,
+      ),
+      DOCS_OBSERVATION_POLICY_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_LOOP_CONTRACT_PATH),
+      SCAFFOLD_LOOP_CONTRACT_DOC_CONTENT,
+      DOCS_LOOP_CONTRACT_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_PLANNING_MODEL_PATH),
+      SCAFFOLD_PLANNING_MODEL_DOC_CONTENT,
+      DOCS_PLANNING_MODEL_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_BUDGETS_PATH),
+      SCAFFOLD_BUDGETS_DOC_CONTENT,
+      DOCS_BUDGETS_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_CONTRACT_VERSIONS_PATH),
+      SCAFFOLD_CONTRACT_VERSIONS_DOC_CONTENT,
+      DOCS_CONTRACT_VERSIONS_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, DOCS_FRONTEND_ADAPTERS_PATH),
+      SCAFFOLD_FRONTEND_ADAPTERS_DOC_CONTENT,
+      DOCS_FRONTEND_ADAPTERS_PATH,
+    );
+    await writeIfAbsent(
       path.join(repoPath, CHECKPOINTS_PATH),
       renderWorkflowTemplate(SCAFFOLD_CHECKPOINTS_CONTENT, workflowPaths),
       CHECKPOINTS_PATH,
@@ -2235,6 +2983,20 @@ async function runInitLocal(
     }
   }
 
+  // ── OpenCode ───────────────────────────────────────────────────────────────
+  if (writeOpenCode) {
+    await writeIfAbsent(
+      path.join(repoPath, OPENCODE_CONFIG_PATH),
+      JSON.stringify(DEFAULT_OPENCODE_JSON, null, 2) + "\n",
+      OPENCODE_CONFIG_PATH,
+    );
+    await writeIfAbsent(
+      path.join(repoPath, OPENCODE_COMMAND_PATH),
+      renderWorkflowTemplate(SCAFFOLD_OPENCODE_COMMAND_TEMPLATE, workflowPaths),
+      OPENCODE_COMMAND_PATH,
+    );
+  }
+
   if (update) {
     console.log("\n✓ Actualización completada.\n");
   } else {
@@ -2279,9 +3041,12 @@ export function isUpdateInit(argv: string[]): boolean {
   return argv.includes("--update");
 }
 
-export function initTarget(argv: string[]): "all" | "claude" | "copilot" {
+export function initTarget(
+  argv: string[],
+): "all" | "claude" | "copilot" | "opencode" {
   if (argv.includes("--claude")) return "claude";
   if (argv.includes("--copilot")) return "copilot";
+  if (argv.includes("--opencode")) return "opencode";
   return "all";
 }
 

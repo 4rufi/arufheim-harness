@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface WorkflowPaths {
-  layout: "hidden";
+  layout: "hidden" | "root-legacy";
   featureListPath: string;
   featureHistoryPath: string;
   currentPath: string;
@@ -10,6 +10,7 @@ export interface WorkflowPaths {
   inboxDir: string;
   inboxProcessedDir: string;
   memoryPath: string;
+  metricsPath: string;
 }
 
 export interface WorkflowFeature {
@@ -32,7 +33,7 @@ type FeatureHistoryRootDocument = {
 };
 
 export interface ParsedFeatureList {
-  shape: "object";
+  shape: "object" | "array";
   features: WorkflowFeature[];
   root: FeatureListRootDocument;
 }
@@ -67,18 +68,58 @@ export const DEFAULT_HISTORY_MD = `# Bitácora histórica (append-only)
 ---
 `;
 
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function resolveWorkflowPaths(
-  _repoPath: string,
+  repoPath: string,
 ): Promise<WorkflowPaths> {
+  const hiddenFeatureList = path.join(repoPath, ".harness/feature_list.json");
+  if (await pathExists(hiddenFeatureList)) {
+    return {
+      layout: "hidden",
+      featureListPath: ".harness/feature_list.json",
+      featureHistoryPath: ".harness/feature_history.json",
+      currentPath: ".harness/progress/current.md",
+      historyPath: ".harness/progress/history.md",
+      inboxDir: ".harness/inbox",
+      inboxProcessedDir: ".harness/inbox/processed",
+      memoryPath: ".harness/memory.sqlite",
+      metricsPath: ".harness/metrics/session.json",
+    };
+  }
+
+  const legacyFeatureList = path.join(repoPath, "feature_list.json");
+  if (!(await pathExists(legacyFeatureList))) {
+    return {
+      layout: "hidden",
+      featureListPath: ".harness/feature_list.json",
+      featureHistoryPath: ".harness/feature_history.json",
+      currentPath: ".harness/progress/current.md",
+      historyPath: ".harness/progress/history.md",
+      inboxDir: ".harness/inbox",
+      inboxProcessedDir: ".harness/inbox/processed",
+      memoryPath: ".harness/memory.sqlite",
+      metricsPath: ".harness/metrics/session.json",
+    };
+  }
+
   return {
-    layout: "hidden",
-    featureListPath: ".harness/feature_list.json",
-    featureHistoryPath: ".harness/feature_history.json",
-    currentPath: ".harness/progress/current.md",
-    historyPath: ".harness/progress/history.md",
-    inboxDir: ".harness/inbox",
-    inboxProcessedDir: ".harness/inbox/processed",
-    memoryPath: ".harness/memory.jsonl",
+    layout: "root-legacy",
+    featureListPath: "feature_list.json",
+    featureHistoryPath: "feature_history.json",
+    currentPath: "progress/current.md",
+    historyPath: "progress/history.md",
+    inboxDir: "inbox",
+    inboxProcessedDir: "inbox/processed",
+    memoryPath: ".harness/memory.sqlite",
+    metricsPath: ".harness/metrics/session.json",
   };
 }
 
@@ -98,7 +139,20 @@ export function parseFeatureListText(raw: string): ParsedFeatureList {
     };
   }
 
-  throw new Error(".harness/feature_list.json must be an object with a features array.");
+  if (Array.isArray(parsed)) {
+    const features = parsed as WorkflowFeature[];
+    return {
+      shape: "array",
+      features,
+      root: {
+        features,
+      },
+    };
+  }
+
+  throw new Error(
+    "feature_list.json must be either an object with a features array or a legacy feature array.",
+  );
 }
 
 export function serializeFeatureList(document: ParsedFeatureList): string {
@@ -125,8 +179,12 @@ export function parseFeatureHistoryText(raw: string): WorkflowFeature[] {
     return (parsed as FeatureHistoryRootDocument).archived_features;
   }
 
+  if (Array.isArray(parsed)) {
+    return parsed as WorkflowFeature[];
+  }
+
   throw new Error(
-    "feature_history.json must be an object with archived_features.",
+    "feature_history.json must be either an object with archived_features or a legacy feature array.",
   );
 }
 

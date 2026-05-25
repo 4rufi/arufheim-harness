@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "arufheim-harness": {
+      "type": "local",
+      "command": ["npx", "arufheim-harness", "--repo-path", "."],
+      "enabled": true
+    }
+  },
+  "permission": {
+    "*": "ask",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "arufheim-harness_harness_status": "allow",
+    "arufheim-harness_harness_metrics": "allow",
+    "arufheim-harness_list_files": "allow",
+    "arufheim-harness_read_file": "allow",
+    "arufheim-harness_search_repo": "allow",
+    "arufheim-harness_mem_context": "allow",
+    "arufheim-harness_mem_search": "allow",
+    "arufheim-harness_mem_get": "allow",
+    "arufheim-harness_mem_get_observation": "allow"
+  }
+}

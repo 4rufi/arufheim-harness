@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { enforcePermissionPolicy } from "../policy.js";
+import { recordRepoWrite, recordToolCall } from "../session-metrics.js";
 import {
   openRepoWriteHandle,
   resolveExistingWithinRepo,
@@ -56,6 +58,7 @@ export function registerHarnessUpdateTool(
     },
     async ({ id, status, name, description }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "harness_update");
 
       await logger.log("tool_call_started", {
         tool: "harness_update",
@@ -63,6 +66,7 @@ export function registerHarnessUpdateTool(
       });
 
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "harness_update", "R1");
         // Enforce single in_progress invariant
         const workflowPaths = await resolveWorkflowPaths(config.repoPath);
         const filePath = path.join(config.repoPath, workflowPaths.featureListPath);
@@ -136,12 +140,14 @@ export function registerHarnessUpdateTool(
 
         const handle = await openRepoWriteHandle(config.repoPath, workflowPaths.featureListPath);
         try {
-          await handle.writeFile(
-            serializeFeatureList({
-              ...document,
-              features,
-            }),
-            "utf8",
+          const serialized = serializeFeatureList({
+            ...document,
+            features,
+          });
+          await handle.writeFile(serialized, "utf8");
+          await recordRepoWrite(
+            config.repoPath,
+            Buffer.byteLength(serialized, "utf8"),
           );
         } finally {
           await handle.close();
@@ -191,6 +197,7 @@ export function registerHarnessUpdateTool(
     },
     async ({ name, description, sdd }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "harness_add");
 
       await logger.log("tool_call_started", {
         tool: "harness_add",
@@ -198,6 +205,7 @@ export function registerHarnessUpdateTool(
       });
 
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "harness_add", "R1");
         const workflowPaths = await resolveWorkflowPaths(config.repoPath);
         let document: ParsedFeatureList = {
           shape: "object",
@@ -259,12 +267,14 @@ export function registerHarnessUpdateTool(
           workflowPaths.featureListPath,
         );
         try {
-          await handle.writeFile(
-            serializeFeatureList({
-              ...document,
-              features,
-            }),
-            "utf8",
+          const serialized = serializeFeatureList({
+            ...document,
+            features,
+          });
+          await handle.writeFile(serialized, "utf8");
+          await recordRepoWrite(
+            config.repoPath,
+            Buffer.byteLength(serialized, "utf8"),
           );
         } finally {
           await handle.close();
@@ -305,6 +315,7 @@ export function registerHarnessUpdateTool(
     },
     async ({ entry }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "harness_log");
 
       await logger.log("tool_call_started", {
         tool: "harness_log",
@@ -312,6 +323,7 @@ export function registerHarnessUpdateTool(
       });
 
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "harness_log", "R1");
         const workflowPaths = await resolveWorkflowPaths(config.repoPath);
         let content: string;
         try {
@@ -352,6 +364,10 @@ export function registerHarnessUpdateTool(
         );
         try {
           await handle.writeFile(content, "utf8");
+          await recordRepoWrite(
+            config.repoPath,
+            Buffer.byteLength(content, "utf8"),
+          );
         } finally {
           await handle.close();
         }

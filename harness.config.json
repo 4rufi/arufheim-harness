@@ -2,5 +2,10 @@
   "version": 1,
   "repoPath": ".",
   "allowedCommands": ["pnpm test", "npm test", "yarn test", "ls", "pwd"],
-  "ignored": ["node_modules/**", ".git/**", "dist/**", ".harness/**"]
+  "ignored": ["node_modules/**", ".git/**", "dist/**", ".harness/**"],
+  "permissionPolicy": {
+    "mode": "always_allow",
+    "allowedTools": [],
+    "allowedRisk": []
+  }
 }

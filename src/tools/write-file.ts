@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { enforcePermissionPolicy } from "../policy.js";
+import { recordRepoWrite, recordToolCall } from "../session-metrics.js";
 import {
   openRepoWriteHandle,
   toErrorResult,
@@ -35,6 +37,7 @@ export function registerWriteFileTool(
     },
     async ({ path: filePath, content, append }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "write_file");
 
       await logger.log("tool_call_started", {
         tool: "write_file",
@@ -42,6 +45,7 @@ export function registerWriteFileTool(
       });
 
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "write_file", "R2");
         if (path.isAbsolute(filePath)) {
           throw new Error("Only relative paths are allowed.");
         }
@@ -67,6 +71,7 @@ export function registerWriteFileTool(
           bytesWritten: Buffer.byteLength(content, "utf8"),
           append: append ?? false,
         };
+        await recordRepoWrite(config.repoPath, result.bytesWritten);
 
         await logger.log("tool_call_finished", {
           tool: "write_file",

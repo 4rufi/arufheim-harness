@@ -1,6 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadConfig } from "../config.js";
+import {
+  recordMemoryRead,
+  recordMemoryWrite,
+  recordToolCall,
+} from "../session-metrics.js";
 import { resolveWorkflowPaths } from "../workflow.js";
 import {
   appendMemoryEntry,
@@ -43,7 +48,7 @@ export function registerMemoryTools(server: McpServer): void {
     "mem_save",
     {
       description:
-        "Persist a memory entry to .harness/memory.jsonl. Survives context resets.",
+        "Persist a memory entry to .harness/memory.sqlite. Survives context resets.",
       inputSchema: {
         title: z.string().min(1).describe("Short title"),
         content: z.string().min(1).describe("Detailed content"),
@@ -83,6 +88,7 @@ export function registerMemoryTools(server: McpServer): void {
       }
 
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "mem_save");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const existing = await readMemoryEntries(
         config.repoPath,
@@ -112,6 +118,10 @@ export function registerMemoryTools(server: McpServer): void {
           topic_key,
         );
         const verb = saved.id === nextId ? "guardada" : "actualizada";
+        await recordMemoryWrite(
+          config.repoPath,
+          Buffer.byteLength(JSON.stringify(saved), "utf8"),
+        );
         return {
           content: [
             {
@@ -126,6 +136,10 @@ export function registerMemoryTools(server: McpServer): void {
         config.repoPath,
         workflowPaths.memoryPath,
         entry,
+      );
+      await recordMemoryWrite(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(saved), "utf8"),
       );
 
       return {
@@ -174,6 +188,7 @@ export function registerMemoryTools(server: McpServer): void {
       session_key,
     }) => {
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "mem_session_summary");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const existing = await readMemoryEntries(
         config.repoPath,
@@ -213,6 +228,10 @@ export function registerMemoryTools(server: McpServer): void {
             upsertKey,
           )
         : await appendMemoryEntry(config.repoPath, workflowPaths.memoryPath, entry);
+      await recordMemoryWrite(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(saved), "utf8"),
+      );
 
       return {
         content: [
@@ -229,7 +248,7 @@ export function registerMemoryTools(server: McpServer): void {
   server.registerTool(
     "mem_search",
     {
-      description: "Search .harness/memory.jsonl by text, type, or feature.",
+      description: "Search .harness/memory.sqlite by text, type, or feature.",
       inputSchema: {
         query: z.string().describe("Text to search in title and content"),
         type: z
@@ -252,6 +271,7 @@ export function registerMemoryTools(server: McpServer): void {
     },
     async ({ query, type, feature, limit = 10, full = false }) => {
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "mem_search");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const results = await searchMemoryEntries(
         config.repoPath,
@@ -271,12 +291,20 @@ export function registerMemoryTools(server: McpServer): void {
           const date = e.timestamp.slice(0, 10);
           return `## #${e.id} [${e.type}] ${e.title}${feat} — ${date}\n\n${e.content}`;
         });
+        await recordMemoryRead(
+          config.repoPath,
+          Buffer.byteLength(lines.join("\n\n---\n\n"), "utf8"),
+        );
         return {
           content: [{ type: "text", text: lines.join("\n\n---\n\n") }],
         };
       }
 
       const compact = results.map(compactMemoryShape);
+      await recordMemoryRead(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(compact), "utf8"),
+      );
 
       return {
         content: [{ type: "text", text: JSON.stringify(compact, null, 2) }],
@@ -295,6 +323,7 @@ export function registerMemoryTools(server: McpServer): void {
     },
     async ({ id }) => {
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "mem_get");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const entry = await getMemoryEntryById(
         config.repoPath,
@@ -312,6 +341,10 @@ export function registerMemoryTools(server: McpServer): void {
           ],
         };
       }
+      await recordMemoryRead(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(entry), "utf8"),
+      );
 
       return {
         content: [{ type: "text", text: JSON.stringify(entry, null, 2) }],
@@ -342,6 +375,7 @@ export function registerMemoryTools(server: McpServer): void {
     },
     async ({ query, feature, limit = 5 }) => {
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "mem_context");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const entries = await searchMemoryEntries(
         config.repoPath,
@@ -354,6 +388,10 @@ export function registerMemoryTools(server: McpServer): void {
       );
 
       const compact = entries.map(compactMemoryShape);
+      await recordMemoryRead(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(compact), "utf8"),
+      );
 
       return {
         content: [{ type: "text", text: JSON.stringify(compact, null, 2) }],
@@ -372,6 +410,7 @@ export function registerMemoryTools(server: McpServer): void {
     },
     async ({ id }) => {
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "mem_get_observation");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const entry = await getMemoryEntryById(
         config.repoPath,
@@ -390,6 +429,10 @@ export function registerMemoryTools(server: McpServer): void {
           ],
         };
       }
+      await recordMemoryRead(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(entry), "utf8"),
+      );
 
       return {
         content: [{ type: "text", text: JSON.stringify(entry, null, 2) }],

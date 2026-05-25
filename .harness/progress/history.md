@@ -116,3 +116,59 @@
 - **Cambios:** `src/tools/shared-memory.ts` (MemEntry extendida, rewriteMemoryFile, upsertMemoryEntry), `src/tools/memory.ts` (mem_save, mem_search modificados; mem_get y mem_context añadidos), `src/init.ts` (tablas MCP y secciones de arranque actualizadas en 4 templates de instrucciones y 7 templates de agente).
 - **Verificación:** `./init.sh` verde (typecheck + build + smoke); trazabilidad R1–R17 completa en `progress/impl_arufheim_memory.md`.
 - **Cierre:** APPROVED. Sin hallazgos bloqueantes.
+
+## 2026-05-23 — P0 de arquitectura explícita del arnés
+
+- **Agente:** Codex
+- **Plan:** formalizar la arquitectura del arnés en docs separadas, fijar contratos de startup y handoff, y declarar una política mínima de retry/blocked sin volverlos parte del hot path.
+- **Cambios:** se añadieron `.harness-docs/model_interface.md`, `.harness-docs/context_manager.md`, `.harness-docs/execution_engine.md`, `.harness-docs/memory_system.md` y `.harness-docs/orchestration.md`; `AGENTS.md` quedó enlazado a estas docs como referencia solo para cambios del propio arnés; `src/init.ts`, `src/doctor.ts`, `scripts/smoke-stdio.mjs` e `init.sh` ahora las scaffoldean y validan en repos nuevos.
+- **Verificación:** `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh typecheck`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh build`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh smoke` y `PATH="/private/tmp:$PATH" ./init.sh`.
+- **Cierre:** P0 listo. La arquitectura del arnés quedó nombrada y modular sin aumentar lecturas obligatorias del flujo normal.
+
+## 2026-05-23 — P1 de runtime contracts del arnés
+
+- **Agente:** Codex
+- **Plan:** explicitar catálogo de tools/riesgo, política de observación, modelo de memoria más formal y estrategia de planificación, manteniéndolos fuera del hot path normal.
+- **Cambios:** se añadieron `.harness-docs/tool_catalog.md`, `.harness-docs/observation_policy.md` y `.harness-docs/planning_model.md`; `memory_system.md` quedó extendido con `observación puntual`, `save policy` y `budget`; `AGENTS.md` los referencia solo para cambios del propio arnés; `src/init.ts`, `src/doctor.ts`, `scripts/smoke-stdio.mjs` e `init.sh` ahora los scaffoldean y validan en repos nuevos.
+- **Verificación:** `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh typecheck`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh build`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh smoke` y `PATH="/private/tmp:$PATH" ./init.sh`.
+- **Cierre:** P1 listo. El arnés ya tiene contratos explícitos para tools, observación, memoria y modo de planificación.
+
+## 2026-05-23 — P2 de budgets, versionado y adapters
+
+- **Agente:** Codex
+- **Plan:** cerrar el runtime contract con budgets operativos, versionado explícito de contratos y mapa por frontend, y luego revisar el flujo/token cost actualizado.
+- **Cambios:** se añadieron `.harness-docs/budgets.md`, `.harness-docs/contract_versions.md` y `.harness-docs/frontend_adapters.md`; `model_interface.md`, `execution_engine.md`, `memory_system.md` y `observation_policy.md` quedaron enlazadas a budgets/versionado; `AGENTS.md`, `src/init.ts`, `src/doctor.ts`, `scripts/smoke-stdio.mjs` e `init.sh` ahora las scaffoldean y validan en repos nuevos.
+- **Verificación:** `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh typecheck`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh build`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh smoke` y `PATH="/private/tmp:$PATH" ./init.sh`.
+- **Cierre:** P2 listo. El arnés ya tiene budgets, contratos versionados y separación explícita entre core y adapters por frontend.
+
+## 2026-05-23 — P0 operativo: policy, métricas y capacidad por frontend
+
+- **Agente:** Codex
+- **Plan:** implementar `PermissionPolicy`, métricas de sesión con tokens locales estimados y una matriz de capacidades por frontend, sin romper el flujo ni el hot path actual.
+- **Cambios:** `src/config.ts` ahora acepta `permissionPolicy`; se añadieron `src/policy.ts`, `src/session-metrics.ts` y `src/tools/harness-metrics.ts`; `run_command`, `write_file`, `inbox_consume`, `harness_update`, `harness_add`, `harness_log`, `progress_*` e `history_append` ya respetan `PermissionPolicy`; `read_file`, `list_files`, `search_repo`, `memory` y `harness_status` alimentan métricas locales; `README.md`, `harness.config.json`, `help`, `tool_catalog.md`, `frontend_adapters.md`, `index` y el scaffold de `init` quedaron alineados. OpenCode quedó documentado en la matriz de capacidades, pero todavía no existe un adapter dedicado.
+- **Verificación:** `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh typecheck`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh build`, `PATH="/private/tmp:$PATH" ./scripts/pnpmw.sh smoke` y `PATH="/private/tmp:$PATH" ./init.sh`.
+- **Cierre:** P0 listo. El arnés ya puede estimar tokens locales por sesión y bloquear mutaciones/command execution por policy declarativa.
+
+## 2026-05-23 — P1 operativo: scaffold y adapter mínimo para OpenCode
+
+- **Agente:** Codex
+- **Plan:** añadir soporte real de OpenCode al scaffold del repo, con config MCP local, comando de arranque compacto y validación ejecutable en `doctor`, smoke e `init.sh`.
+- **Cambios:** `src/init.ts` ahora soporta `init --opencode` y scaffoldea `.opencode/opencode.json` + `.opencode/commands/harness.md`; `src/doctor.ts`, `scripts/smoke-stdio.mjs`, `src/help.ts`, `README.md`, `init.sh` y `.harness-docs/frontend_adapters.md` quedaron alineados; el repo actual ahora incluye los archivos canónicos de OpenCode en `.opencode/`.
+- **Verificación:** `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh typecheck`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh build`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh smoke` y `PATH=/private/tmp:$PATH ./init.sh`.
+- **Cierre:** P1 listo. OpenCode ya tiene adapter mínimo verificable sin cambiar el flujo central del arnés.
+
+## 2026-05-23 — P2 operativo: loop contract y observabilidad en TUI
+
+- **Agente:** Codex
+- **Plan:** formalizar el `loop contract` del arnés sin introducir un loop engine propio, y mejorar el `tui` para exponer policy y métricas de sesión.
+- **Cambios:** se añadió `.harness-docs/loop_contract.md`; `contract_versions.md`, `AGENTS.md`, `src/init.ts`, `src/doctor.ts`, `scripts/smoke-stdio.mjs` e `init.sh` quedaron alineados para scaffold y validación; `src/tui.ts` ahora muestra una sección `Runtime` con `PermissionPolicy`, contadores de tools/commands y `estimated_local_tokens`; `README.md`, `src/help.ts` y `tool_catalog.md` reflejan el dashboard ampliado.
+- **Verificación:** `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh typecheck`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh build`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh smoke` y `PATH=/private/tmp:$PATH ./init.sh`.
+- **Cierre:** P2 listo. El arnés ahora tiene contrato explícito para `request -> observe -> decide -> act -> retry/block` y una vista operativa del runtime sin mover el hot path del workflow normal.
+
+## 2026-05-23 — Compatibilidad legacy + migración + versión 1.0.0
+
+- **Agente:** Codex
+- **Plan:** hacer que el runtime nuevo siga leyendo repos legacy, que `doctor` los marque como compatibles pero desactualizados, y que `init --update` migre al layout actual sin borrar archivos viejos; alinear además la versión pública a `1.0.0`.
+- **Cambios:** `src/workflow.ts` ahora detecta layout `.harness/` o `root-legacy`, soporta `feature_list.json` array u objeto y `feature_history.json` array u objeto; `src/init.ts` migra `feature_list.json`, `feature_history.json`, `progress/`, `inbox/` y `docs/*.md` al layout actual cuando corres `init --update`; `src/doctor.ts` acepta repos legacy como compatibles y recomienda migración; `scripts/smoke-stdio.mjs` cubre runtime legacy y migración; `README.md` documenta el path de upgrade; `package.json`, `src/index.ts` y smoke quedaron en `1.0.0`.
+- **Verificación:** `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh typecheck`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh build`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh smoke` y `PATH=/private/tmp:$PATH ./init.sh`.
+- **Cierre:** el binario nuevo puede convivir con repos viejos y migrarlos al contrato actual; base lista para release `1.0.0`.

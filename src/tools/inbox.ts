@@ -4,6 +4,12 @@ import fg from "fast-glob";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadConfig } from "../config.js";
+import { enforcePermissionPolicy } from "../policy.js";
+import {
+  recordRepoRead,
+  recordRepoWrite,
+  recordToolCall,
+} from "../session-metrics.js";
 import {
   prepareRepoWriteTarget,
   resolveExistingWithinRepo,
@@ -21,6 +27,7 @@ export function registerInboxTools(server: McpServer): void {
     },
     async () => {
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "inbox_list");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
 
       let files: string[];
@@ -66,6 +73,10 @@ export function registerInboxTools(server: McpServer): void {
           }
         }),
       );
+      await recordRepoRead(
+        config.repoPath,
+        Buffer.byteLength(JSON.stringify(entries), "utf8"),
+      );
 
       return {
         content: [{ type: "text", text: JSON.stringify(entries, null, 2) }],
@@ -95,6 +106,8 @@ export function registerInboxTools(server: McpServer): void {
       }
 
       const config = await loadConfig();
+      await recordToolCall(config.repoPath, "inbox_consume");
+      enforcePermissionPolicy(config.permissionPolicy, "inbox_consume", "R2");
       const workflowPaths = await resolveWorkflowPaths(config.repoPath);
       const processedAbs = path.join(
         config.repoPath,
@@ -117,6 +130,10 @@ export function registerInboxTools(server: McpServer): void {
           srcRelativePath,
         );
         content = await readFile(srcPath, "utf8");
+        await recordRepoRead(
+          config.repoPath,
+          Buffer.byteLength(content, "utf8"),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
@@ -132,6 +149,10 @@ export function registerInboxTools(server: McpServer): void {
           srcRelativePath,
         );
         await rename(srcPath, dstPath);
+        await recordRepoWrite(
+          config.repoPath,
+          Buffer.byteLength(content, "utf8"),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {

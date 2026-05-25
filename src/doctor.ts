@@ -13,7 +13,7 @@ interface CheckResult {
   fix?: string;
 }
 
-const FILES = [
+const CURRENT_FILES = [
   {
     label: "AGENTS.md",
     path: "AGENTS.md",
@@ -55,6 +55,66 @@ const FILES = [
     fix: "arufheim-harness init",
   },
   {
+    label: ".harness-docs/model_interface.md",
+    path: ".harness-docs/model_interface.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/context_manager.md",
+    path: ".harness-docs/context_manager.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/execution_engine.md",
+    path: ".harness-docs/execution_engine.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/memory_system.md",
+    path: ".harness-docs/memory_system.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/orchestration.md",
+    path: ".harness-docs/orchestration.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/tool_catalog.md",
+    path: ".harness-docs/tool_catalog.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/observation_policy.md",
+    path: ".harness-docs/observation_policy.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/loop_contract.md",
+    path: ".harness-docs/loop_contract.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/planning_model.md",
+    path: ".harness-docs/planning_model.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/budgets.md",
+    path: ".harness-docs/budgets.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/contract_versions.md",
+    path: ".harness-docs/contract_versions.md",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".harness-docs/frontend_adapters.md",
+    path: ".harness-docs/frontend_adapters.md",
+    fix: "arufheim-harness init",
+  },
+  {
     label: ".github/copilot-instructions.md",
     path: ".github/copilot-instructions.md",
     fix: "arufheim-harness init",
@@ -70,9 +130,77 @@ const FILES = [
     fix: "arufheim-harness init",
   },
   {
+    label: ".opencode/opencode.json",
+    path: ".opencode/opencode.json",
+    fix: "arufheim-harness init",
+  },
+  {
+    label: ".opencode/commands/harness.md",
+    path: ".opencode/commands/harness.md",
+    fix: "arufheim-harness init",
+  },
+  {
     label: ".vscode/mcp.json",
     path: ".vscode/mcp.json",
     fix: "arufheim-harness init",
+  },
+];
+
+const LEGACY_FILES = [
+  {
+    label: "AGENTS.md",
+    path: "AGENTS.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "CHECKPOINTS.md",
+    path: "CHECKPOINTS.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "harness.config.json",
+    path: "harness.config.json",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "docs/architecture.md",
+    path: "docs/architecture.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "docs/conventions.md",
+    path: "docs/conventions.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "docs/specs.md",
+    path: "docs/specs.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "docs/verification.md",
+    path: "docs/verification.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: ".github/copilot-instructions.md",
+    path: ".github/copilot-instructions.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: "CLAUDE.md",
+    path: "CLAUDE.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: ".claude/commands/harness.md",
+    path: ".claude/commands/harness.md",
+    fix: "arufheim-harness init --update",
+  },
+  {
+    label: ".vscode/mcp.json",
+    path: ".vscode/mcp.json",
+    fix: "arufheim-harness init --update",
   },
 ];
 
@@ -90,8 +218,11 @@ export async function runDoctor(repoPath?: string): Promise<void> {
   const checks: CheckResult[] = [];
   const workflowPaths = await resolveWorkflowPaths(root);
 
+  const scaffoldFiles =
+    workflowPaths.layout === "hidden" ? CURRENT_FILES : LEGACY_FILES;
+
   // 1. File presence checks
-  for (const file of FILES) {
+  for (const file of scaffoldFiles) {
     const abs = path.join(root, file.path);
     const ok = await fileExists(abs);
     checks.push({
@@ -102,17 +233,21 @@ export async function runDoctor(repoPath?: string): Promise<void> {
     });
   }
 
-  for (const file of [
+  const workflowFiles = [
     {
       label: workflowPaths.featureListPath,
       path: workflowPaths.featureListPath,
-      fix: "arufheim-harness init",
+      fix: "arufheim-harness init --update",
     },
-    {
-      label: workflowPaths.featureHistoryPath,
-      path: workflowPaths.featureHistoryPath,
-      fix: "arufheim-harness init",
-    },
+    ...(workflowPaths.layout === "hidden"
+      ? [
+          {
+            label: workflowPaths.featureHistoryPath,
+            path: workflowPaths.featureHistoryPath,
+            fix: "arufheim-harness init --update",
+          },
+        ]
+      : []),
     {
       label: path.posix.join(
         path.posix.dirname(workflowPaths.currentPath),
@@ -122,19 +257,21 @@ export async function runDoctor(repoPath?: string): Promise<void> {
         path.posix.dirname(workflowPaths.currentPath),
         "README.md",
       ),
-      fix: "arufheim-harness init",
+      fix: "arufheim-harness init --update",
     },
     {
       label: workflowPaths.currentPath,
       path: workflowPaths.currentPath,
-      fix: "arufheim-harness init",
+      fix: "arufheim-harness init --update",
     },
     {
       label: workflowPaths.historyPath,
       path: workflowPaths.historyPath,
-      fix: "arufheim-harness init",
+      fix: "arufheim-harness init --update",
     },
-  ]) {
+  ];
+
+  for (const file of workflowFiles) {
     const abs = path.join(root, file.path);
     const ok = await fileExists(abs);
     checks.push({
@@ -151,6 +288,15 @@ export async function runDoctor(repoPath?: string): Promise<void> {
     detail: workflowPaths.layout,
   });
 
+  if (workflowPaths.layout === "root-legacy") {
+    checks.push({
+      label: "repo compatible pero desactualizado",
+      ok: true,
+      detail: "layout root-legacy detectado; recomendado correr arufheim-harness init --update",
+      fix: "arufheim-harness init --update",
+    });
+  }
+
   // 1b. harness.config.json version check
   const configPath = path.join(root, "harness.config.json");
   if (await fileExists(configPath)) {
@@ -158,12 +304,21 @@ export async function runDoctor(repoPath?: string): Promise<void> {
       const raw = await readFile(configPath, "utf8");
       const cfg = JSON.parse(raw) as { version?: number };
       if (cfg.version === undefined) {
-        checks.push({
-          label: "harness.config.json tiene version",
-          ok: false,
-          detail: "campo version ausente (schema desactualizado)",
-          fix: 'arufheim-harness init --update o agrega manualmente "version": 1',
-        });
+        if (workflowPaths.layout === "root-legacy") {
+          checks.push({
+            label: "harness.config.json tiene version",
+            ok: true,
+            detail: "schema legacy compatible; recomendado correr init --update",
+            fix: "arufheim-harness init --update",
+          });
+        } else {
+          checks.push({
+            label: "harness.config.json tiene version",
+            ok: false,
+            detail: "campo version ausente (schema desactualizado)",
+            fix: 'arufheim-harness init --update o agrega manualmente "version": 1',
+          });
+        }
       } else if (cfg.version < HARNESS_CONFIG_VERSION) {
         checks.push({
           label: "harness.config.json version",
@@ -240,6 +395,33 @@ export async function runDoctor(repoPath?: string): Promise<void> {
     }
   }
 
+  const opencodeConfigPath = path.join(root, ".opencode/opencode.json");
+  if (await fileExists(opencodeConfigPath)) {
+    try {
+      const raw = await readFile(opencodeConfigPath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        $schema?: string;
+        mcp?: Record<string, unknown>;
+      };
+      const ok =
+        parsed.$schema === "https://opencode.ai/config.json" &&
+        typeof parsed.mcp?.["arufheim-harness"] === "object";
+      checks.push({
+        label: "opencode.json válido para harness",
+        ok,
+        detail: ok ? undefined : "falta schema o MCP arufheim-harness",
+        fix: ok ? undefined : "arufheim-harness init --update",
+      });
+    } catch {
+      checks.push({
+        label: "opencode.json válido para harness",
+        ok: false,
+        detail: "JSON inválido",
+        fix: "arufheim-harness init --update",
+      });
+    }
+  }
+
   // 4. copilot-instructions has ## Comunicación section
   const copilotPath = path.join(root, ".github/copilot-instructions.md");
   if (await fileExists(copilotPath)) {
@@ -263,6 +445,20 @@ export async function runDoctor(repoPath?: string): Promise<void> {
       ok: hasCom,
       detail: hasCom ? undefined : "sección faltante",
       fix: hasCom ? undefined : "arufheim-harness init --update",
+    });
+  }
+
+  // 6. OpenCode command uses compact startup
+  const opencodeCommandPath = path.join(root, ".opencode/commands/harness.md");
+  if (await fileExists(opencodeCommandPath)) {
+    const content = await readFile(opencodeCommandPath, "utf8");
+    const hasStartup =
+      content.includes("harness_status") && content.includes("startup_brief");
+    checks.push({
+      label: "OpenCode command usa startup compacto",
+      ok: hasStartup,
+      detail: hasStartup ? undefined : "faltan harness_status o startup_brief",
+      fix: hasStartup ? undefined : "arufheim-harness init --update",
     });
   }
 

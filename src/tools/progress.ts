@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { enforcePermissionPolicy } from "../policy.js";
+import { recordRepoWrite, recordToolCall } from "../session-metrics.js";
 import {
   openRepoWriteHandle,
   resolveExistingWithinRepo,
@@ -54,11 +56,13 @@ export function registerProgressTools(
     },
     async ({ content }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "progress_set_plan");
       await logger.log("tool_call_started", {
         tool: "progress_set_plan",
         input: { length: content.length },
       });
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "progress_set_plan", "R1");
         const workflowPaths = await resolveWorkflowPaths(config.repoPath);
         let current: string;
         try {
@@ -77,6 +81,10 @@ export function registerProgressTools(
         );
         try {
           await handle.writeFile(updated, "utf8");
+          await recordRepoWrite(
+            config.repoPath,
+            Buffer.byteLength(updated, "utf8"),
+          );
         } finally {
           await handle.close();
         }
@@ -113,11 +121,13 @@ export function registerProgressTools(
     },
     async ({ content }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "progress_next_step");
       await logger.log("tool_call_started", {
         tool: "progress_next_step",
         input: { length: content.length },
       });
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "progress_next_step", "R1");
         const workflowPaths = await resolveWorkflowPaths(config.repoPath);
         let current: string;
         try {
@@ -136,6 +146,10 @@ export function registerProgressTools(
         );
         try {
           await handle.writeFile(updated, "utf8");
+          await recordRepoWrite(
+            config.repoPath,
+            Buffer.byteLength(updated, "utf8"),
+          );
         } finally {
           await handle.close();
         }
@@ -179,11 +193,13 @@ export function registerProgressTools(
     },
     async ({ agente, plan, cambios, verificacion, cierre }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "history_append");
       await logger.log("tool_call_started", {
         tool: "history_append",
         input: { agente },
       });
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "history_append", "R1");
         const workflowPaths = await resolveWorkflowPaths(config.repoPath);
         const date = new Date().toISOString().slice(0, 10);
         let history = DEFAULT_HISTORY_MD;
@@ -212,6 +228,10 @@ export function registerProgressTools(
         );
         try {
           await handle.writeFile(updated, "utf8");
+          await recordRepoWrite(
+            config.repoPath,
+            Buffer.byteLength(updated, "utf8"),
+          );
         } finally {
           await handle.close();
         }

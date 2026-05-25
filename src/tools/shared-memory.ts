@@ -55,6 +55,13 @@ function memoryDbPathFrom(relativePath: string): string {
   return relativePath.replace(/\.jsonl$/i, ".sqlite");
 }
 
+function legacyJsonlPathFrom(relativePath: string): string {
+  if (relativePath.endsWith(".sqlite")) {
+    return relativePath.replace(/\.sqlite$/i, ".jsonl");
+  }
+  return relativePath;
+}
+
 function computeContentHash(entry: Omit<MemEntry, "id" | "timestamp">): string {
   return createHash("sha256")
     .update(
@@ -142,7 +149,10 @@ async function importLegacyJsonlIfNeeded(
 
   let safePath: string;
   try {
-    safePath = await resolveExistingWithinRepo(repoPath, relativePath);
+    safePath = await resolveExistingWithinRepo(
+      repoPath,
+      legacyJsonlPathFrom(relativePath),
+    );
   } catch {
     return;
   }

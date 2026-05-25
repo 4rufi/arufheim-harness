@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { recordRepoRead, recordToolCall } from "../session-metrics.js";
 import {
   assertSafeGlobPattern,
   resolveExistingWithinRepo,
@@ -33,6 +34,7 @@ export function registerListFilesTool(
     async ({ pattern }) => {
       const startedAt = Date.now();
       const effectivePattern = pattern?.trim() || "**/*";
+      await recordToolCall(config.repoPath, "list_files");
 
       await logger.log("tool_call_started", {
         tool: "list_files",
@@ -70,6 +72,10 @@ export function registerListFilesTool(
           truncated: safeFiles.length > MAX_FILES,
           files: safeFiles.slice(0, MAX_FILES),
         };
+        await recordRepoRead(
+          config.repoPath,
+          Buffer.byteLength(JSON.stringify(result.files), "utf8"),
+        );
 
         await logger.log("tool_call_finished", {
           tool: "list_files",

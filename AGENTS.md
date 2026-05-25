@@ -19,6 +19,7 @@ Mapa operativo del repo.
 - `.harness-docs/architecture.md`: diseño
 - `.harness-docs/conventions.md`: edición/código
 - `.harness-docs/verification.md`: cierre
+- `.harness-docs/model_interface.md`, `.harness-docs/context_manager.md`, `.harness-docs/execution_engine.md`, `.harness-docs/memory_system.md`, `.harness-docs/orchestration.md`, `.harness-docs/tool_catalog.md`, `.harness-docs/observation_policy.md`, `.harness-docs/planning_model.md`, `.harness-docs/budgets.md`, `.harness-docs/contract_versions.md`, `.harness-docs/frontend_adapters.md`, `.harness-docs/loop_contract.md`: solo si cambias el propio arnés
 - `CHECKPOINTS.md`: auto-review
 - `.harness/inbox/`: input nuevo
 - `.claude/agents/`, `.github/prompts/`, `CLAUDE.md`, `CODEX.md`: orquestación

@@ -4,12 +4,22 @@ import process from "node:process";
 
 import { z } from "zod";
 
+import {
+  normalizePermissionPolicy,
+  permissionPolicySchema,
+  type PermissionPolicy,
+} from "./policy.js";
 import { DEFAULT_IGNORED } from "./safety.js";
 
 const harnessConfigSchema = z.object({
   repoPath: z.string().default("."),
   allowedCommands: z.array(z.string()).default([]),
   ignored: z.array(z.string()).default(DEFAULT_IGNORED),
+  permissionPolicy: permissionPolicySchema.default({
+    mode: "always_allow",
+    allowedTools: [],
+    allowedRisk: [],
+  }),
 });
 
 export interface ResolvedharnessConfig {
@@ -17,6 +27,7 @@ export interface ResolvedharnessConfig {
   repoPath: string;
   allowedCommands: string[];
   ignored: string[];
+  permissionPolicy: PermissionPolicy;
   logFilePath?: string;
 }
 
@@ -52,6 +63,7 @@ export async function loadConfig(
       repoPath,
       allowedCommands: normalizeCommands(parsed.allowedCommands),
       ignored: normalizeIgnored(parsed.ignored),
+      permissionPolicy: normalizePermissionPolicy(parsed.permissionPolicy),
       logFilePath: undefined,
     };
   }
@@ -76,6 +88,7 @@ export async function loadConfig(
     repoPath: path.resolve(path.dirname(configPath), parsed.repoPath),
     allowedCommands: normalizeCommands(parsed.allowedCommands),
     ignored: normalizeIgnored(parsed.ignored),
+    permissionPolicy: normalizePermissionPolicy(parsed.permissionPolicy),
     logFilePath: undefined,
   };
 }

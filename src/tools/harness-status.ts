@@ -7,6 +7,8 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { summarizePermissionPolicy } from "../policy.js";
+import { readSessionMetrics, recordToolCall } from "../session-metrics.js";
 import {
   resolveExistingWithinRepo,
   toErrorResult,
@@ -70,6 +72,7 @@ export function registerHarnessStatusTool(
     },
     async ({ mode }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "harness_status");
 
       await logger.log("tool_call_started", { tool: "harness_status" });
 
@@ -198,6 +201,8 @@ export function registerHarnessStatusTool(
           total_features: features.length,
           archived_features_count: archivedFeatures.length,
           recent_memory_blockers: recentBlockers,
+          session_metrics: await readSessionMetrics(repoPath),
+          permission_policy: summarizePermissionPolicy(config.permissionPolicy),
           startup_brief: startupBrief,
         };
 

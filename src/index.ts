@@ -15,6 +15,7 @@ import {
 import { JsonlLogger } from "./logger.js";
 import { registerRepoResources } from "./resources/repo-resources.js";
 import { registerHarnessStatusTool } from "./tools/harness-status.js";
+import { registerHarnessMetricsTool } from "./tools/harness-metrics.js";
 import { registerHarnessUpdateTool } from "./tools/harness-update.js";
 import { registerInboxTools } from "./tools/inbox.js";
 import { registerListFilesTool } from "./tools/list-files.js";
@@ -88,7 +89,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "harness",
-    version: "0.1.0",
+    version: "1.0.0",
   });
 
   registerRepoResources(server, config, logger);
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
   registerSearchRepoTool(server, config, logger);
   registerRunCommandTool(server, config, logger);
   registerHarnessStatusTool(server, config, logger);
+  registerHarnessMetricsTool(server, config, logger);
   registerHarnessUpdateTool(server, config, logger);
   registerInboxTools(server);
   registerMemoryTools(server);

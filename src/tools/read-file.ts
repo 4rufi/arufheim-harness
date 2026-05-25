@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { recordRepoRead, recordToolCall } from "../session-metrics.js";
 import {
   MAX_FILE_CHARS,
   resolveExistingWithinRepo,
@@ -41,6 +42,7 @@ export function registerReadFileTool(
     },
     async ({ path, start_line, end_line }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "read_file");
 
       await logger.log("tool_call_started", {
         tool: "read_file",
@@ -75,6 +77,10 @@ export function registerReadFileTool(
           truncatedBySize,
           content: slice,
         };
+        await recordRepoRead(
+          config.repoPath,
+          Buffer.byteLength(slice, "utf8"),
+        );
 
         await logger.log("tool_call_finished", {
           tool: "read_file",

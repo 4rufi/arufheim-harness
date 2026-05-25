@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { enforcePermissionPolicy } from "../policy.js";
+import { recordCommandCall, recordToolCall } from "../session-metrics.js";
 import {
   COMMAND_MAX_BUFFER_BYTES,
   COMMAND_TIMEOUT_MS,
@@ -45,6 +47,7 @@ export function registerRunCommandTool(
     },
     async ({ command, max_lines = 100 }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "run_command");
 
       await logger.log("tool_call_started", {
         tool: "run_command",
@@ -52,6 +55,7 @@ export function registerRunCommandTool(
       });
 
       try {
+        enforcePermissionPolicy(config.permissionPolicy, "run_command", "R3");
         assertAllowedCommand(command, config.allowedCommands);
         const [file, ...args] = tokenizeCommand(command);
 
@@ -77,6 +81,10 @@ export function registerRunCommandTool(
               stderrOmitted: truncStderr.omitted,
             }),
           };
+          await recordCommandCall(
+            config.repoPath,
+            Buffer.byteLength(result.stdout + result.stderr, "utf8"),
+          );
 
           await logger.log("tool_call_finished", {
             tool: "run_command",

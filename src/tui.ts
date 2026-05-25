@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import fg from "fast-glob";
 import { loadConfig } from "./config.js";
+import { readSessionMetrics, type SessionMetrics } from "./session-metrics.js";
 import { resolveExistingWithinRepo } from "./safety.js";
 import { readMemoryEntries } from "./tools/shared-memory.js";
 import { parseFeatureListText, resolveWorkflowPaths } from "./workflow.js";
@@ -152,6 +153,10 @@ async function loadMemory(repoPath: string, limit = 4): Promise<MemEntry[]> {
   return entries.reverse().slice(0, limit);
 }
 
+async function loadMetrics(repoPath: string): Promise<SessionMetrics> {
+  return readSessionMetrics(repoPath);
+}
+
 // ── Renderers ────────────────────────────────────────────────────────────────
 const STATUS_ICON: Record<FeatureStatus, string> = {
   in_progress: "●",
@@ -199,16 +204,23 @@ function emptyRow(text: string): string {
   return row(`  ${c(P.subtext0, text)}`);
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+function renderRuntimeLine(label: string, value: string, accent: string = P.text): string {
+  const left = `  ${c(P.subtext1, pad(label, 14))} ${c(accent, value)}`;
+  return row(left);
+}
+
+  // ── Main ─────────────────────────────────────────────────────────────────────
 export async function runTui(): Promise<void> {
   const config = await loadConfig();
   const root = config.repoPath;
+  const permissionPolicy = config.permissionPolicy;
 
-  const [features, nextSteps, inbox, memories] = await Promise.all([
+  const [features, nextSteps, inbox, memories, metrics] = await Promise.all([
     loadFeatures(root),
     loadNextStep(root),
     loadInbox(root),
     loadMemory(root),
+    loadMetrics(root),
   ]);
 
   const out: string[] = [];
@@ -255,6 +267,45 @@ export async function runTui(): Promise<void> {
       out.push(row(`  ${c(P.teal, "·")} ${c(P.text, f)}`));
     if (inbox.length > 6) out.push(emptyRow(`... y ${inbox.length - 6} más`));
   }
+
+  out.push(row());
+  out.push(sep());
+  out.push(row());
+
+  // ── Runtime ───────────────────────────────────────────────────────────────
+  out.push(sectionLabel("Runtime"));
+  out.push(
+    renderRuntimeLine(
+      "Policy",
+      permissionPolicy.mode,
+      permissionPolicy.mode === "always_allow"
+        ? P.green
+        : permissionPolicy.mode === "always_ask"
+          ? P.yellow
+          : P.teal,
+    ),
+  );
+  out.push(
+    renderRuntimeLine(
+      "Allowed",
+      `tools=${permissionPolicy.allowedTools.length} risk=${permissionPolicy.allowedRisk.length}`,
+      P.subtext0,
+    ),
+  );
+  out.push(
+    renderRuntimeLine(
+      "Metrics",
+      `tok≈${metrics.estimated_local_tokens} tools=${metrics.tool_calls} cmd=${metrics.command_calls}`,
+      P.text,
+    ),
+  );
+  out.push(
+    renderRuntimeLine(
+      "Repo I/O",
+      `read=${metrics.repo_reads} write=${metrics.repo_writes} mem=${metrics.memory_reads}/${metrics.memory_writes}`,
+      P.subtext0,
+    ),
+  );
 
   out.push(row());
   out.push(sep());

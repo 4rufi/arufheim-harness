@@ -77,7 +77,7 @@ export function runHelp(): void {
     cmd(
       "init",
       "",
-      "inicializa workflow base + Claude + Copilot en repo actual",
+      "inicializa workflow base + Claude + Copilot + OpenCode",
     ),
   );
   lines.push(
@@ -95,13 +95,20 @@ export function runHelp(): void {
     ),
   );
   lines.push(
+    cmd(
+      "init",
+      "--opencode",
+      "workflow base + archivos OpenCode",
+    ),
+  );
+  lines.push(
     cmd("init", "--global", "configura VS Code / Claude Desktop / Claude Code"),
   );
   lines.push(
     cmd("init", "--update", "aplica secciones faltantes sin sobreescribir"),
   );
   lines.push(cmd("doctor", "", "valida el setup y propone fixes"));
-  lines.push(cmd("tui", "", "dashboard visual con estado del repo"));
+  lines.push(cmd("tui", "", "dashboard visual con estado, policy y métricas"));
   lines.push(cmd("help", "", "muestra esta ayuda"));
   lines.push("");
   lines.push(note("--repo-path <ruta>   raíz del repo (default: cwd)"));
@@ -151,6 +158,13 @@ export function runHelp(): void {
   lines.push(
     tool("harness_log", "<entry>", "append a la bitácora de current.md"),
   );
+  lines.push(
+    tool(
+      "harness_metrics",
+      "",
+      "métricas de sesión + tokens locales estimados",
+    ),
+  );
 
   // ── MCP tools: inbox ──────────────────────────────────────────────────────
   lines.push(heading("Herramientas MCP — Inbox"));
@@ -191,6 +205,11 @@ export function runHelp(): void {
   lines.push("");
   lines.push(note("tipos: decision · learning · note · blocker · session"));
   lines.push(note("estados: pending · spec_ready · in_progress · done · blocked"));
+  lines.push(
+    note(
+      "permissionPolicy: always_allow · always_ask · allow_list (harness.config.json)",
+    ),
+  );
 
   // ── Resources ─────────────────────────────────────────────────────────────
   lines.push(heading("MCP Resources"));

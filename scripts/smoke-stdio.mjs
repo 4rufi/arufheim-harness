@@ -56,6 +56,7 @@ try {
   await smokeDefaultRepo();
   await smokeMissingRawConfig();
   await smokeSecurityBoundaries();
+  await smokeLegacyRootCompatibility();
   await smokeWorkflowHiddenLayout();
   await smokeInitScaffold();
   smokeCliSurfaces();
@@ -435,6 +436,117 @@ async function smokeWorkflowHiddenLayout() {
   }
 }
 
+async function smokeLegacyRootCompatibility() {
+  const tempRoot = await mkdtemp(
+    path.join(os.tmpdir(), "harness-smoke-workflow-legacy-"),
+  );
+  const repoPath = path.join(tempRoot, "repo");
+
+  try {
+    await seedLegacyRootRepo(repoPath);
+
+    await withharness(
+      {
+        cwd: repoPath,
+        args: ["--repo-path", repoPath],
+        name: "harness-smoke-workflow-legacy",
+      },
+      async ({ client }) => {
+        const initialStatus = await client.callTool({
+          name: "harness_status",
+          arguments: { mode: "brief_only" },
+        });
+        assert(
+          initialStatus.structuredContent?.pending_count === 1,
+          `harness_status did not parse legacy root feature_list.json.\n${JSON.stringify(initialStatus, null, 2)}`,
+        );
+        assert(
+          initialStatus.structuredContent?.next_step === "(sin plan activo)",
+          `harness_status did not ignore the legacy placeholder.\n${JSON.stringify(initialStatus, null, 2)}`,
+        );
+
+        const addFeature = await client.callTool({
+          name: "harness_add",
+          arguments: {
+            name: "legacy-beta",
+            description: "legacy feature",
+          },
+        });
+        assert(
+          addFeature.structuredContent?.added?.id === 2,
+          `harness_add failed on legacy root layout.\n${JSON.stringify(addFeature, null, 2)}`,
+        );
+
+        const markInProgress = await client.callTool({
+          name: "harness_update",
+          arguments: { id: 1, status: "in_progress" },
+        });
+        assert(
+          markInProgress.structuredContent?.updated?.status === "in_progress",
+          `harness_update failed on legacy root layout.\n${JSON.stringify(markInProgress, null, 2)}`,
+        );
+      },
+    );
+
+    const doctorBefore = spawnSync(
+      process.execPath,
+      [distPath, "doctor", "--repo-path", repoPath],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      doctorBefore.status === 0,
+      `doctor should accept compatible legacy repos.\nstdout:\n${doctorBefore.stdout}\nstderr:\n${doctorBefore.stderr}`,
+    );
+    assert(
+      doctorBefore.stdout.includes("compatible pero desactualizado"),
+      `doctor did not warn about legacy layout.\n${doctorBefore.stdout}`,
+    );
+
+    const update = spawnSync(
+      process.execPath,
+      [distPath, "init", "--repo-path", repoPath, "--update"],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      update.status === 0,
+      `init --update failed on legacy repo.\nstdout:\n${update.stdout}\nstderr:\n${update.stderr}`,
+    );
+
+    const migratedFeatureListRaw = await readFile(
+      path.join(repoPath, ".harness", "feature_list.json"),
+      "utf8",
+    );
+    const migratedFeatureList = JSON.parse(migratedFeatureListRaw);
+    assert(
+      !Array.isArray(migratedFeatureList) &&
+        Array.isArray(migratedFeatureList.features) &&
+        migratedFeatureList.features.length === 2,
+      `legacy migration did not normalize feature_list.json.\n${migratedFeatureListRaw}`,
+    );
+
+    const doctorAfter = spawnSync(
+      process.execPath,
+      [distPath, "doctor", "--repo-path", repoPath],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      doctorAfter.status === 0,
+      `doctor failed after migrating legacy repo.\nstdout:\n${doctorAfter.stdout}\nstderr:\n${doctorAfter.stderr}`,
+    );
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
 async function smokeInitScaffold() {
   const tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "harness-smoke-init-"),
@@ -469,12 +581,26 @@ async function smokeInitScaffold() {
       ".harness-docs/specs.md",
       ".harness-docs/specs_policy.md",
       ".harness-docs/verification.md",
+      ".harness-docs/model_interface.md",
+      ".harness-docs/context_manager.md",
+      ".harness-docs/execution_engine.md",
+      ".harness-docs/memory_system.md",
+      ".harness-docs/orchestration.md",
+      ".harness-docs/tool_catalog.md",
+      ".harness-docs/observation_policy.md",
+      ".harness-docs/loop_contract.md",
+      ".harness-docs/planning_model.md",
+      ".harness-docs/budgets.md",
+      ".harness-docs/contract_versions.md",
+      ".harness-docs/frontend_adapters.md",
       "CHECKPOINTS.md",
       "AGENTS.md",
       "CLAUDE.md",
       "CODEX.md",
       ".claude/commands/harness.md",
       ".claude/agents/leader.md",
+      ".opencode/opencode.json",
+      ".opencode/commands/harness.md",
       ".github/copilot-instructions.md",
       ".github/prompts/leader.prompt.md",
       ".vscode/mcp.json",
@@ -526,6 +652,28 @@ async function smokeInitScaffold() {
         leaderPrompt.includes("startup_brief") &&
         leaderPrompt.includes(".harness/feature_list.json"),
       `Leader prompt does not use the canonical hidden workflow layout.\n${leaderPrompt}`,
+    );
+
+    const opencodeConfig = await readFile(
+      path.join(repoPath, ".opencode", "opencode.json"),
+      "utf8",
+    );
+    assert(
+      opencodeConfig.includes('"$schema": "https://opencode.ai/config.json"') &&
+        opencodeConfig.includes('"arufheim-harness"') &&
+        opencodeConfig.includes('"permission"'),
+      `OpenCode scaffold is missing schema, MCP or permission policy.\n${opencodeConfig}`,
+    );
+
+    const opencodeCommand = await readFile(
+      path.join(repoPath, ".opencode", "commands", "harness.md"),
+      "utf8",
+    );
+    assert(
+      opencodeCommand.includes("harness_status") &&
+        opencodeCommand.includes("startup_brief") &&
+        opencodeCommand.includes(".harness/progress/current.md"),
+      `OpenCode command does not use the compact startup contract.\n${opencodeCommand}`,
     );
 
     const claudeInstructions = await readFile(
@@ -582,6 +730,10 @@ function smokeCliSurfaces() {
     help.stdout.includes("harness_status"),
     `help output is missing MCP tool documentation.\n${help.stdout}`,
   );
+  assert(
+    help.stdout.includes("--opencode"),
+    `help output does not document init --opencode.\n${help.stdout}`,
+  );
 
   const doctor = spawnSync(
     process.execPath,
@@ -613,7 +765,10 @@ function smokeCliSurfaces() {
     `tui command failed.\nstdout:\n${tui.stdout}\nstderr:\n${tui.stderr}`,
   );
   assert(
-    tui.stdout.includes("Features") && tui.stdout.includes("Inbox"),
+    tui.stdout.includes("Features") &&
+      tui.stdout.includes("Inbox") &&
+      tui.stdout.includes("Runtime") &&
+      tui.stdout.includes("Metrics"),
     `tui output does not contain the expected sections.\n${tui.stdout}`,
   );
 }
@@ -666,7 +821,7 @@ async function withharness(options, run) {
   const client = new Client(
     {
       name: options.name,
-      version: "0.1.0",
+      version: "1.0.0",
     },
     {
       capabilities: {},
@@ -728,6 +883,83 @@ async function seedHiddenWorkflowRepo(repoPath) {
     "Hidden workflow task\n",
     "utf8",
   );
+}
+
+async function seedLegacyRootRepo(repoPath) {
+  await mkdir(path.join(repoPath, "progress"), { recursive: true });
+  await mkdir(path.join(repoPath, "inbox", "processed"), { recursive: true });
+  await mkdir(path.join(repoPath, "docs"), { recursive: true });
+
+  await writeJson(
+    path.join(repoPath, "harness.config.json"),
+    {
+      allowedCommands: [],
+      ignored: ["node_modules/**", ".git/**", "dist/**", ".harness/**"],
+    },
+    true,
+  );
+  await writeJson(
+    path.join(repoPath, "feature_list.json"),
+    [
+      {
+        id: 1,
+        name: "legacy-alpha",
+        description: "legacy workflow feature",
+        status: "pending",
+      },
+    ],
+    true,
+  );
+  await writeFile(path.join(repoPath, "progress", "README.md"), "# Progress\n", "utf8");
+  await writeFile(
+    path.join(repoPath, "progress", "current.md"),
+    DEFAULT_CURRENT_MD,
+    "utf8",
+  );
+  await writeFile(
+    path.join(repoPath, "progress", "history.md"),
+    DEFAULT_HISTORY_MD,
+    "utf8",
+  );
+  await writeFile(
+    path.join(repoPath, "inbox", "README.md"),
+    "# inbox\n",
+    "utf8",
+  );
+  await writeFile(
+    path.join(repoPath, "inbox", "legacy-task.md"),
+    "Legacy workflow task\n",
+    "utf8",
+  );
+  for (const file of [
+    "architecture.md",
+    "conventions.md",
+    "specs.md",
+    "verification.md",
+  ]) {
+    await writeFile(path.join(repoPath, "docs", file), `# ${file}\n`, "utf8");
+  }
+  await writeFile(path.join(repoPath, "AGENTS.md"), "# AGENTS\n", "utf8");
+  await writeFile(path.join(repoPath, "CLAUDE.md"), "## Comunicación\n", "utf8");
+  await mkdir(path.join(repoPath, ".claude", "commands"), { recursive: true });
+  await writeFile(
+    path.join(repoPath, ".claude", "commands", "harness.md"),
+    "# Harness\n",
+    "utf8",
+  );
+  await mkdir(path.join(repoPath, ".github"), { recursive: true });
+  await writeFile(
+    path.join(repoPath, ".github", "copilot-instructions.md"),
+    "## Comunicación\n",
+    "utf8",
+  );
+  await mkdir(path.join(repoPath, ".vscode"), { recursive: true });
+  await writeFile(
+    path.join(repoPath, ".vscode", "mcp.json"),
+    JSON.stringify({ servers: {} }, null, 2) + "\n",
+    "utf8",
+  );
+  await writeFile(path.join(repoPath, "CHECKPOINTS.md"), "# CHECKPOINTS\n", "utf8");
 }
 
 async function writeJson(filePath, value, trailingNewline = false) {

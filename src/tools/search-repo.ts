@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
+import { recordRepoRead, recordToolCall } from "../session-metrics.js";
 import {
   MAX_SEARCH_FILE_BYTES,
   MAX_SEARCH_RESULTS,
@@ -55,6 +56,7 @@ export function registerSearchRepoTool(
     },
     async ({ query, regex, context_lines, include }) => {
       const startedAt = Date.now();
+      await recordToolCall(config.repoPath, "search_repo");
 
       await logger.log("tool_call_started", {
         tool: "search_repo",
@@ -151,6 +153,10 @@ export function registerSearchRepoTool(
           truncated,
           matches,
         };
+        await recordRepoRead(
+          config.repoPath,
+          Buffer.byteLength(JSON.stringify(matches), "utf8"),
+        );
 
         await logger.log("tool_call_finished", {
           tool: "search_repo",

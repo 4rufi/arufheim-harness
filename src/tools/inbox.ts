@@ -1,6 +1,5 @@
 import { mkdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
-import fg from "fast-glob";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadConfig } from "../config.js";
@@ -14,7 +13,11 @@ import {
   prepareRepoWriteTarget,
   resolveExistingWithinRepo,
 } from "../safety.js";
-import { resolveWorkflowPaths } from "../workflow.js";
+import {
+  isPendingInboxEntryName,
+  listPendingInboxEntries,
+  resolveWorkflowPaths,
+} from "../workflow.js";
 
 export function registerInboxTools(server: McpServer): void {
   // ── inbox_list ───────────────────────────────────────────────────────────
@@ -37,12 +40,7 @@ export function registerInboxTools(server: McpServer): void {
           config.repoPath,
           workflowPaths.inboxDir,
         );
-        files = await fg("*", {
-          cwd: inboxAbs,
-          ignore: ["processed/**"],
-          onlyFiles: true,
-          dot: false,
-        });
+        files = await listPendingInboxEntries(config.repoPath);
       } catch {
         return {
           content: [
@@ -101,6 +99,17 @@ export function registerInboxTools(server: McpServer): void {
           isError: true,
           content: [
             { type: "text", text: `Nombre de archivo inválido: ${filename}` },
+          ],
+        };
+      }
+      if (!isPendingInboxEntryName(safe)) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Archivo reservado del inbox: ${filename}`,
+            },
           ],
         };
       }

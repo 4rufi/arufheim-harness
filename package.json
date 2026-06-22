@@ -1,6 +1,6 @@
 {
   "name": "arufheim-harness",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "engines": {
@@ -12,6 +12,8 @@
     "smoke": "node scripts/smoke-stdio.mjs",
     "test": "node scripts/smoke-stdio.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "release:check": "./scripts/release-check.sh",
+    "release:publish-check": "node scripts/release-publish-check.mjs",
     "verify": "./scripts/pnpmw.sh typecheck && ./scripts/pnpmw.sh build && ./scripts/pnpmw.sh smoke"
   },
   "bin": {
@@ -28,7 +30,9 @@
   },
   "files": [
     "dist",
+    "CHANGELOG.md",
     "README.md",
+    "manual-release-checklist.md",
     "LICENSE"
   ]
 }

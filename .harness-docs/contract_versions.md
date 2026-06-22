@@ -5,9 +5,9 @@ prompts.
 
 ## Versiones actuales
 
-- `startup contract v1`
-- `handoff contract v1`
-- `loop contract v1`
+- `startup contract v2`
+- `handoff contract v2`
+- `loop contract v2`
 - `observation contract v1`
 - `retrieval contract v1`
 - `retry policy v1`

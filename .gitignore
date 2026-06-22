@@ -12,3 +12,4 @@ dist
 .harness/*.sqlite
 .DS_Store
 *.tsbuildinfo
+.pnpm-store/

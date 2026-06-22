@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "arufheim-harness": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "arufheim-harness",
+        "--repo-path",
+        ".",
+        "--client",
+        "claude-code"
+      ],
+      "cwd": ".",
+      "env": {}
+    }
+  }
+}

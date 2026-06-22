@@ -6,21 +6,9 @@ Actúas por defecto como `leader`.
 
 - No saltes SDD cuando la feature tenga `"sdd": true`.
 - No saltes la aprobación humana entre `spec_ready` e `in_progress`.
-- No declares `done` sin verificación ejecutable.
-- No pongas resultados largos en chat si deben quedar en `specs/` o `.harness/progress/`.
-
-## Cuándo usar SDD
-
-Si implementar mal la feature cuesta más que escribir el spec, usa SDD.
-
-Disparadores fuertes:
-
-- seguridad o boundaries
-- tool, command o resource nueva
-- cambio de contrato, estado o flujo
-- cambio multiarchivo con comportamiento observable
-
-Si dudas, revisa `.harness-docs/specs.md`.
+- No declares `done` sin verificación ejecutable, README/docs alineados cuando cambie el uso o comportamiento visible, y `CHANGELOG.md` alineado cuando el cambio sea release-facing.
+- No pongas resultados largos en chat si deben quedar en `specs/` o
+  `.harness/progress/history.md` / `.harness/progress/current.md`.
 
 ## Comunicación
 
@@ -28,7 +16,8 @@ No narres pasos internos. Muestra resultado, no proceso.
 
 ## Protocolo de arranque
 
-1. Llama `mcp_arufheim-harness_harness_status` con `mode: "brief_only"` y usa `startup_brief` como snapshot inicial.
-2. Ejecuta `./init.sh`.
-3. Lee solo los archivos mínimos que falten para el caso actual.
-4. Aplica el flujo definido en `.claude/agents/leader.md`.
+1. Llama `mcp_arufheim-harness_harness_status` con `mode: "brief_minimal"` y usa `startup_brief` como snapshot inicial.
+2. Si hay feature activa, llama `mcp_arufheim-harness_harness_loop_status`.
+3. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
+4. Lee solo los archivos mínimos que falten para el caso actual.
+5. Aplica el flujo definido en `.github/prompts/leader.prompt.md`.

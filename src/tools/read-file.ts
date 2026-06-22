@@ -1,4 +1,6 @@
-import { readFile, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { createInterface } from "node:readline";
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -55,31 +57,31 @@ export function registerReadFileTool(
           path,
         );
         const fileStats = await stat(absolutePath);
-        const raw = await readFile(absolutePath, "utf8");
-
-        // Enforce char limit before line slicing
-        const truncatedBySize = raw.length > MAX_FILE_CHARS;
-        const content = truncatedBySize ? raw.slice(0, MAX_FILE_CHARS) : raw;
-
-        const allLines = content.split("\n");
-        const totalLines = allLines.length;
-
         const from = Math.max(1, start_line ?? 1);
-        const to = Math.min(totalLines, end_line ?? totalLines);
-        const slice = allLines.slice(from - 1, to).join("\n");
+        if (end_line !== undefined && end_line < from) {
+          throw new Error(
+            `Invalid line range: end_line (${end_line}) must be greater than or equal to start_line (${from}).`,
+          );
+        }
+
+        const preview = await buildPreviewForRange(absolutePath, from, end_line);
 
         const result = {
           path,
           sizeBytes: fileStats.size,
-          totalLines,
+          totalLines: preview.totalLines,
           startLine: from,
-          endLine: to,
-          truncatedBySize,
-          content: slice,
+          endLine: preview.endLine,
+          ...(preview.truncatedBySize && {
+            previewTotalLines: preview.previewTotalLines,
+            previewEndLine: preview.previewEndLine,
+          }),
+          truncatedBySize: preview.truncatedBySize,
+          content: preview.content,
         };
         await recordRepoRead(
           config.repoPath,
-          Buffer.byteLength(slice, "utf8"),
+          Buffer.byteLength(preview.content, "utf8"),
         );
 
         await logger.log("tool_call_finished", {
@@ -87,9 +89,9 @@ export function registerReadFileTool(
           ok: true,
           durationMs: Date.now() - startedAt,
           sizeBytes: fileStats.size,
-          totalLines,
+          totalLines: preview.totalLines,
           startLine: from,
-          endLine: to,
+          endLine: preview.endLine,
         });
 
         return toSuccessResult(result);
@@ -109,4 +111,83 @@ export function registerReadFileTool(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+type RangePreview = {
+  content: string;
+  endLine: number;
+  previewEndLine?: number;
+  previewTotalLines?: number;
+  totalLines: number;
+  truncatedBySize: boolean;
+};
+
+async function buildPreviewForRange(
+  absolutePath: string,
+  startLine: number,
+  endLine?: number,
+): Promise<RangePreview> {
+  const stream = createReadStream(absolutePath, { encoding: "utf8" });
+  const lines = createInterface({
+    input: stream,
+    crlfDelay: Number.POSITIVE_INFINITY,
+  });
+
+  let totalLines = 0;
+  let content = "";
+  let truncatedBySize = false;
+  let previewEndLine: number | undefined;
+  let previewTotalLines = 0;
+
+  try {
+    for await (const line of lines) {
+      totalLines += 1;
+
+      if (totalLines < startLine) {
+        continue;
+      }
+
+      if (endLine !== undefined && totalLines > endLine) {
+        continue;
+      }
+
+      if (truncatedBySize) {
+        continue;
+      }
+
+      const chunk = previewTotalLines === 0 ? line : `\n${line}`;
+      const remaining = MAX_FILE_CHARS - content.length;
+      if (chunk.length <= remaining) {
+        content += chunk;
+        previewEndLine = totalLines;
+        previewTotalLines += 1;
+        continue;
+      }
+
+      truncatedBySize = true;
+      if (remaining > 0) {
+        content += chunk.slice(0, remaining);
+        previewEndLine = totalLines;
+        previewTotalLines += 1;
+      }
+    }
+  } finally {
+    stream.destroy();
+  }
+
+  if (totalLines === 0) {
+    totalLines = 1;
+  }
+
+  const logicalEndLine = Math.min(totalLines, endLine ?? totalLines);
+  return {
+    content,
+    endLine: logicalEndLine,
+    ...(truncatedBySize && {
+      previewEndLine,
+      previewTotalLines,
+    }),
+    totalLines,
+    truncatedBySize,
+  };
 }

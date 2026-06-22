@@ -3,7 +3,13 @@
     "arufheim-harness": {
       "type": "stdio",
       "command": "npx",
-      "args": ["arufheim-harness", "--repo-path", "${workspaceFolder}"]
+      "args": [
+        "arufheim-harness",
+        "--repo-path",
+        "${workspaceFolder}",
+        "--client",
+        "vscode"
+      ]
     }
   }
 }

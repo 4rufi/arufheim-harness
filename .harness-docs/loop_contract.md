@@ -1,57 +1,67 @@
 # Loop Contract
 
-Define el loop operativo del agente sin convertir el arnés en un runtime de chat.
+Define el loop operativo canónico del arnés. El runtime MCP, `status`,
+`doctor`, `tui`, prompts y el modo `agent` hablan el mismo loop.
 
-## Loop contract v1
+## Loop contract v2
 
-El loop canónico es:
+Dentro de una feature `in_progress`, el subloop es:
 
-1. `request`
-2. `observe`
-3. `decide`
-4. `act`
-5. `retry` o `block`
+```text
+leader(plan)
+-> implementer(execute attempt N)
+-> verify
+-> reviewer(review round N)
+-> if fail/reject: analyze -> route_back -> implementer(attempt N+1)
+-> if success: done
+-> if budget exhausted / hard blocker / missing human input: blocked
+```
 
-## Request
+## Reglas
 
-- parte desde `startup_brief`
+- el `leader` es el único controller del loop
+- `implementer` ejecuta un solo intento por handoff
+- `reviewer` evalúa un solo intento por handoff
+- todo retry requiere `strategy_delta` explícito
+- si se repite el mismo `error_signature` sin progreso real, el loop escala a `blocked`
+- el gate humano sigue viviendo entre `spec_ready` e `in_progress`
+
+## Estado persistido
+
+Cada feature activa puede tener un loop file en:
+
+` .harness/metrics/loops/<feature_id>_<feature_slug>.json `
+
+Campos base:
+
+- `phase`
+- `attempt_index`
+- `review_round`
+- `next_actor`
+- `budgets`
+- `last_error_signature`
+- `last_strategy_delta`
+- `no_progress_streak`
+- `repeated_failure_streak`
+- `events[]`
+
+## Budgets por defecto
+
+- `max_attempts_total = 3`
+- `max_review_route_backs = 2`
+- `max_no_progress_rounds = 2`
+- `require_strategy_delta = true`
+- `auto_route_back = true`
+
+## Arranque
+
+- parte desde `harness_status({ mode: "brief_minimal" })`
+- si hay feature activa, consulta `harness_loop_status`
 - trae `mem_context` solo si hace falta contexto reusable
-- abre archivos adicionales solo cuando el brief no alcanza
+- abre archivos adicionales solo cuando el brief o el loop no alcanzan
 
-## Observe
+## Cierre
 
-- usa `observation contract v1`
-- registra solo señal útil
-- no dupliques outputs largos si no cambian la decisión
-
-## Decide
-
-- si la observación trae señal nueva, ajusta estrategia
-- si no trae señal nueva, no repitas la misma acción
-- si falta contexto, escala a `summary`, spec completa o código
-
-## Act
-
-- prioriza tools seguras y resultados estructurados
-- respeta `PermissionPolicy`
-- respeta `action budget v1`
-
-## Retry
-
-- máximo `2` retries equivalentes
-- un retry equivalente requiere cambiar comando, contexto o hipótesis
-- si el resultado es igual, no cuenta como progreso
-
-## Block
-
-Marca `blocked` cuando:
-
-- falta información esencial
-- el output no mejora tras retries razonables
-- una tool necesaria falla de forma persistente
-- seguir exige desviarse del spec o del contrato aprobado
-
-## Regla
-
-Hermess define el contrato del loop, no un engine propio de provider. Claude,
-Codex, Copilot u OpenCode ejecutan ese loop con el mismo contrato operativo.
+- `done` o `blocked` cierran el loop y preservan el archivo para trazabilidad
+- `repair` puede sembrar el loop inicial faltante
+- `repair` no reescribe historial de intentos ni cierra features por su cuenta

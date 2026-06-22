@@ -119,6 +119,38 @@
 
 ## 2026-05-23 — P0 de arquitectura explícita del arnés
 
+## 2026-06-06 — Hardening P1 de config y boundaries
+
+- **Agente:** Codex
+- **Plan:** cerrar los P1 de fail-open en config explícita, traversal por `include` en `search_repo` y drift del smoke legacy.
+- **Cambios:** `src/config.ts` ahora falla cerrado cuando `--repo-path` apunta a una config existente pero inválida y solo usa defaults en `ENOENT`; `src/tools/search-repo.ts` valida `include` antes de ejecutar `fast-glob`; `scripts/smoke-stdio.mjs` agrega cobertura para config inválida con `--repo-path`, rechazo de `include` inseguro y alinea el fixture legacy agregando `CODEX.md`.
+- **Verificación:** `./init.sh` verde (typecheck, build y smoke OK) ejecutado fuera del sandbox.
+- **Cierre:** P1 implementado y archivado; la spec quedó preservada en `specs/p1_hardening_boundaries_and_config/`.
+
+## 2026-06-06 — P2 de workflow lock y read_file
+
+- **Agente:** Codex
+- **Plan:** cerrar las carreras en `harness_add/harness_update` y corregir `read_file` para rangos tardíos en archivos grandes.
+- **Cambios:** `src/tools/harness-update.ts` ahora ejecuta `harness_add` y `harness_update` bajo `withWorkflowWriteLock()`; `src/tools/read-file.ts` selecciona primero el rango lógico y solo después aplica truncado; `scripts/smoke-stdio.mjs` ahora cubre concurrencia de `harness_add` y lectura tardía/truncada en `large.txt`.
+- **Verificación:** `./init.sh` verde (typecheck, build y smoke OK).
+- **Cierre:** P2 implementado y archivado; la spec quedó preservada en `specs/p2_workflow_lock_and_read_file_ranges/`.
+
+## 2026-06-06 — Limpieza de señal del inbox pendiente
+
+- **Agente:** Codex
+- **Plan:** unificar la regla de archivo pendiente del inbox para excluir `README.md`, propagarla a tools/runtime/TUI y cubrir la regresión en smoke.
+- **Cambios:** `src/workflow.ts` ahora expone `INBOX_RESERVED_BASENAMES`, `isPendingInboxEntryName()` y `listPendingInboxEntries()`; `src/tools/inbox.ts`, `src/tools/harness-status.ts`, `src/agent.ts` y `src/tui.ts` reutilizan esa regla compartida; `scripts/smoke-stdio.mjs` verifica que `README.md` no aparezca en `harness_status` ni `inbox_list` y que `inbox_consume` lo rechace.
+- **Verificación:** `./init.sh` verde (typecheck, build y smoke OK).
+- **Cierre:** feature implementada y archivada; la spec quedó preservada en `specs/inbox_signal_cleanup/`.
+
+## 2026-06-06 — Hardening del binding MCP por repo
+
+- **Agente:** Codex
+- **Plan:** fijar binding repo-scoped para Codex y Claude Code, endurecer entrypoints globales, hacer visible `repo_path/config_path` en `harness_status` y validar todo en `doctor`, `init.sh` y smoke.
+- **Cambios:** `src/init.ts` ahora scaffoldea `.codex/config.toml` y `.mcp.json`, añade Codex a `init --global` y hace que las integraciones globales pasen `--repo-path`; `src/tools/harness-status.ts` expone `repo_path`, `config_path`, `config_scope` y `workflow_layout`; `src/doctor.ts` valida bindings repo-scoped/globales sin romper compatibilidad legacy; `init.sh`, `README.md`, `CODEX.md`, `src/help.ts` y `scripts/smoke-stdio.mjs` quedaron alineados.
+- **Verificación:** `./init.sh` verde (typecheck, build y smoke OK).
+- **Cierre:** feature implementada y archivada; la spec quedó preservada en `specs/repo_binding_hardening/`.
+
 - **Agente:** Codex
 - **Plan:** formalizar la arquitectura del arnés en docs separadas, fijar contratos de startup y handoff, y declarar una política mínima de retry/blocked sin volverlos parte del hot path.
 - **Cambios:** se añadieron `.harness-docs/model_interface.md`, `.harness-docs/context_manager.md`, `.harness-docs/execution_engine.md`, `.harness-docs/memory_system.md` y `.harness-docs/orchestration.md`; `AGENTS.md` quedó enlazado a estas docs como referencia solo para cambios del propio arnés; `src/init.ts`, `src/doctor.ts`, `scripts/smoke-stdio.mjs` e `init.sh` ahora las scaffoldean y validan en repos nuevos.
@@ -172,3 +204,219 @@
 - **Cambios:** `src/workflow.ts` ahora detecta layout `.harness/` o `root-legacy`, soporta `feature_list.json` array u objeto y `feature_history.json` array u objeto; `src/init.ts` migra `feature_list.json`, `feature_history.json`, `progress/`, `inbox/` y `docs/*.md` al layout actual cuando corres `init --update`; `src/doctor.ts` acepta repos legacy como compatibles y recomienda migración; `scripts/smoke-stdio.mjs` cubre runtime legacy y migración; `README.md` documenta el path de upgrade; `package.json`, `src/index.ts` y smoke quedaron en `1.0.0`.
 - **Verificación:** `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh typecheck`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh build`, `PATH=/private/tmp:$PATH ./scripts/pnpmw.sh smoke` y `PATH=/private/tmp:$PATH ./init.sh`.
 - **Cierre:** el binario nuevo puede convivir con repos viejos y migrarlos al contrato actual; base lista para release `1.0.0`.
+
+## 2026-06-06 — P3 de contratos runtime, cierre SDD y config CLI
+
+- **Agente:** Codex
+- **Plan:** cerrar los huecos detectados en el review completo: validar cierres SDD en la tool, hacer fail-closed el binding global ambiguo, corregir `read_file` para rangos inválidos/archivos grandes y ampliar `config set` para policy/comandos.
+- **Cambios:** `src/tools/harness-update.ts` ahora exige spec para estados SDD y evidencia `impl/review` válida antes de `done`; `src/config.ts` falla cerrado cuando solo existe config global sin binding explícito; `src/tools/read-file.ts` valida `end_line < start_line` y calcula previews por streaming; `src/config-command.ts`, `src/help.ts` y `README.md` ahora soportan/documentan `permissionPolicy.*`, `allowedCommands` e `ignored`; `scripts/smoke-stdio.mjs` cubre fallback global ambiguo, rangos invertidos, cierre SDD inválido/válido y mutaciones CLI de config.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; la spec quedó preservada en `specs/p3_contract_hardening_followups/`.
+
+## 2026-06-06 — P4 de setup, health y repair operable
+
+- **Agente:** Codex
+- **Plan:** encapsular el arnés actual detrás de `setup`, `doctor`, `repair` y un modelo común de health sin recortar SDD, backlog, memoria ni compatibilidad de `init`.
+- **Cambios:** se añadieron `src/health.ts`, `src/setup.ts`, `src/repair.ts` y `src/client-selection.ts`; `src/doctor.ts` ahora consume el snapshot común y soporta `--json`; `src/index.ts` expone `setup`, `repair` y banner con `layout/health`; `src/tools/harness-status.ts`, `src/resources/repo-resources.ts` y `src/tui.ts` ahora muestran `alerts`, `binding_status`, `doctor_summary`, `last_verified_at`, `degraded_mode` y `harness://health`; `src/init.ts` ganó selección programática de clientes e `init --codex`; `src/help.ts`, `README.md` y `scripts/smoke-stdio.mjs` mueven el camino recomendado a `setup -> doctor -> repair -> init.sh` y cubren idempotencia, `doctor --json`, `repair` y el resource de health.
+
+## 2026-06-14 — Operabilidad y release hardening
+
+- **Agente:** Codex
+- **Plan:** estabilizar identidad de repo, añadir fallback CLI de status, abaratar el startup brief y validar la release desde el tarball instalado.
+- **Cambios:** `repoPath` quedó normalizado en init/setup/repair/health; se añadió `src/status.ts` y el comando `arufheim-harness status`; `harness_status` comparte esa lógica y evita blockers/métricas en `brief_only`; `README.md`, `help`, prompts y checklist manual documentan el fallback `status --brief --json`; `scripts/release-check.sh` ahora instala el tarball en un repo temporal y corre `setup` + `doctor`; `scripts/smoke-stdio.mjs` cubre `--repo-path .` y el nuevo surface CLI.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke`, `./init.sh` y `npm run release:check -- --allow-dirty`.
+- **Cierre:** la operabilidad ya no depende solo de que el frontend cargue tools MCP en el primer intento y la release valida el artefacto empaquetado real.
+
+## 2026-06-14 — Cierre de packaging, brief y gate de release
+
+- **Agente:** Codex
+- **Plan:** cerrar los cuatro huecos remanentes del flujo completo: checklist empaquetada, gate del tarball más representativo, `archived_count` fuera del hot path y changelog alineado.
+- **Cambios:** `manual-release-checklist.md` ahora viaja en el paquete npm; `release-check` valida la checklist instalada y ejecuta `setup`, `status --brief --json`, `repair` y `doctor` sobre el tarball; `archived_count` pasó al snapshot de health y `status` dejó de releer `feature_history.json` en cada brief; `README.md` y `CHANGELOG.md` quedaron alineados con el gate real.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke`, `./init.sh` y `npm run release:check -- --allow-dirty`.
+- **Cierre:** el flujo publicado ya cubre mejor el artefacto real y el startup brief quedó más barato sin romper contrato visible.
+
+## 2026-06-14 — P1 de claridad operativa, adapters y gate automático
+
+- **Agente:** Codex
+- **Plan:** hacer explícito el estado operativo por cliente, alinear el protocolo de arranque entre adapters y dejar un workflow de CI que ejecute el gate completo de release.
+- **Cambios:** `src/health.ts` ahora deriva `client_readiness`; `setup`, `repair`, `doctor`, `status` y `tui` exponen ese resumen operativo; `CODEX.md`, `CLAUDE.md`, `.claude/commands/harness.md`, `.opencode/commands/harness.md` y sus templates quedaron alineados al mismo fallback `harness_status -> status --brief --json`; `.codex/config.toml` del repo quedó reconciliado con `--client codex`; se añadió `.github/workflows/ci.yml`; `README.md`, `manual-release-checklist.md`, `CHANGELOG.md` y `help` quedaron actualizados; el smoke cubre `client_readiness` y la transición `configured_needs_activation -> verified`.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke`, `./init.sh` y `npm run release:check -- --allow-dirty`.
+- **Cierre:** feature cerrada y archivada; el repo del harness quedó en `doctor=ok` con surface operativa más clara para CLI y frontend.
+
+## 2026-06-07 — Cierre de repo_bootstrap_contract_alignment
+
+- **Agente:** Codex
+- **Plan:** alinear scaffold repo-local, docs Codex-only y health para setups parciales por cliente.
+- **Cambios:** `src/init.ts` ahora scaffoldea `init.sh` ejecutable, desacopla `CODEX.md` de `.claude/agents/leader.md`, persiste `scaffold.localClients` y muestra activación por target; `src/health.ts` filtra alerts cliente según `scaffold.localClients` y exige `init.sh` en layout actual; `scripts/smoke-stdio.mjs` añade smoke dedicado para `setup --clients codex`; `README.md` documenta el contrato nuevo.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** feature archivada; los repos Codex-only ya no nacen degradados ni con instrucciones rotas.
+
+## 2026-06-07 — Convergencia real de `setup --update` repo-scoped
+
+- **Agente:** Codex
+- **Plan:** hacer que `setup --update` reescriba bindings y entrypoints managed ya existentes, y que no esconda fallos de escritura.
+- **Cambios:** `src/init.ts` ahora usa `writeManagedFile()` para entrypoints managed, actualiza la entrada `arufheim-harness` en `.vscode/mcp.json`, `.mcp.json`, `.opencode/opencode.json` y reemplaza la sección correspondiente en `.codex/config.toml`; además ya no silencia `EPERM/EACCES`; `scripts/smoke-stdio.mjs` añade un smoke dedicado al caso de configs repo-scoped viejas.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** `setup --update` ahora converge de verdad; en este workspace concreto `.codex/config.toml` sigue bloqueado por la policy local de Codex, pero el error ya sale explícito.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; el arnés queda operable como infra resuelta con observabilidad transversal y compatibilidad gradual preservada.
+
+## 2026-06-06 — P5 de cierre de release-readiness
+
+- **Agente:** Codex
+- **Plan:** cerrar los tres blockers restantes antes de publicar: contrato final de `setup --update`, versionado público alineado y gate de release reproducible.
+- **Cambios:** `src/init.ts` ahora hace upsert de entradas globales gestionadas para VS Code, Claude Desktop, Claude Code y Codex; `src/setup.ts` distingue modo normal de `--update`; `src/repair.ts` usa la ruta global de reconcile; `package.json`, `src/index.ts`, `README.md`, `src/help.ts` y `CHANGELOG.md` quedaron alineados en `1.1.0`; se añadió `scripts/release-check.sh` y el script `npm run release:check`; `scripts/smoke-stdio.mjs` cubre `setup --update`, reparación global gestionada y la nueva surface pública.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke`, `./scripts/release-check.sh` (fallo esperado con worktree sucio), `HARNESS_RELEASE_ALLOW_DIRTY=1 ./scripts/release-check.sh` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; la release queda acotada a tener worktree limpio y decidir el acto de publicación.
+
+## 2026-06-06 — Upgrade seguro de AGENTS.md existente
+
+- **Agente:** Codex
+- **Plan:** mantener `AGENTS.md` como archivo preservado del repo, pero añadir una sección gestionada del harness que `setup` y `repair` puedan reconciliar sin sobrescribir contenido custom.
+- **Cambios:** `src/init.ts` ahora crea `AGENTS.md` nuevo con un bloque gestionado marcado y, en modo update, inserta o regenera solo ese bloque sobre archivos existentes; `src/health.ts` añade el diagnóstico `scaffold.agents.managed` para detectar `AGENTS.md` presentes pero no gestionados o desactualizados; `scripts/smoke-stdio.mjs` cubre el caso de un repo con `AGENTS.md` propio que primero degrada en `doctor` y luego converge con `setup`; `README.md` documenta la semántica no destructiva.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; `AGENTS.md` existente ahora converge sin perder contenido del repo.
+
+## 2026-06-06 — P6 de operabilidad y hardening de bindings globales
+
+- **Agente:** Codex
+- **Plan:** cerrar los hallazgos del review final sobre la capa global: no sobrescribir configs inválidas, distinguir bindings asumidos de portables reales y dejar pasos manuales explícitos por cliente.
+- **Cambios:** `src/init.ts` ahora valida configs globales antes de escribir y falla cerrado sobre JSON/JSONC/TOML inválidos; `src/setup.ts` y `src/repair.ts` muestran pasos de activación o reinicio por cliente; `src/health.ts` añade el estado `assumed` y `global_assumed` para bindings globales no verificables; `scripts/smoke-stdio.mjs` cubre fail-closed de configs globales inválidas, bindings asumidos y la nueva salida operativa; `src/help.ts`, `README.md` y `manual-release-checklist.md` documentan el contrato nuevo.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; la capa global ahora falla cerrado donde corresponde y expone explícitamente qué sigue requiriendo validación manual.
+
+## 2026-06-06 — P7 de handshake y verificación automática por cliente
+
+- **Agente:** Codex
+- **Plan:** mover la validación de integraciones cliente desde la checklist manual al runtime del harness, sin romper setup/init/doctor ni bindings existentes.
+- **Cambios:** `src/init.ts` ahora genera bindings con `--client`; `src/config.ts` resuelve `clientId` y `configScope`; `src/index.ts` registra verificación repo-local al arranque; `src/health.ts` persiste `client-verifications.json`, expone `client_verification` y promueve bindings globales `assumed` a `verified`; `src/tools/harness-status.ts`, `src/doctor.ts` y `src/tui.ts` muestran el estado nuevo; `scripts/smoke-stdio.mjs`, `README.md`, `src/help.ts` y `manual-release-checklist.md` quedaron alineados con el contrato de upgrade automático.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; el arnés ahora distingue configuración escrita de frontend realmente verificado y deja de degradar bindings `assumed` cuando la evidencia sigue vigente.
+
+## 2026-06-07 — Follow-up: pre-verificación de bindings determinísticos
+
+- **Agente:** Codex
+- **Plan:** eliminar el ruido operativo restante donde bindings repo-scoped o globales portables quedaban en `configured` pese a no depender ya del frontend.
+- **Cambios:** `src/health.ts` ahora trata bindings `config_sufficient` como `verified` por contrato de config; `src/setup.ts`/`src/repair.ts`, `scripts/smoke-stdio.mjs`, `README.md`, `src/help.ts` y `manual-release-checklist.md` quedaron alineados para reservar el primer arranque real solo a globals `assumed`.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** el camino normal repo-scoped ya queda `verified` al hacer `setup` o `repair`; solo los bindings globales que dependen del cwd real del cliente siguen esperando arranque real.
+
+## 2026-06-07 — P8 de preferencia repo-scoped en setup/repair globales
+
+- **Agente:** Codex
+- **Plan:** hacer que `setup --global` y `repair --global` dejen una ruta resuelta para Claude Code y Codex cuando ya existe un repo disponible, sin contaminar cwd arbitrarios.
+- **Cambios:** se añadió `src/global-mode.ts` para resolver `repo_context` seguro, centralizar el scaffold híbrido y la pre-verificación determinística; `src/setup.ts`, `src/repair.ts` y `src/init.ts` ahora distinguen config global de bindings repo-scoped preferidos en output y activación; `scripts/smoke-stdio.mjs` cubre el camino híbrido explícito/detectado y el no-write fuera de repo; `README.md`, `src/help.ts` y `manual-release-checklist.md` documentan `setup --global --repo-path <repo>`.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** feature implementada y archivada; Claude Code y Codex ya no dependen solo del fallback global ambiguo cuando el repo está disponible.
+
+## 2026-06-07 — Cierre release-facing de 1.1.0
+
+- **Agente:** Codex
+- **Plan:** alinear changelog y guía mínima de publish con estado real de `1.1.0`.
+- **Cambios:** `CHANGELOG.md` ahora refleja setup/repair, health compartido, verificación por cliente y preferencia repo-scoped; `README.md` y `manual-release-checklist.md` ahora separan gate automático de publish y pasada manual de clientes.
+- **Verificación:** `./init.sh`.
+- **Cierre:** narrativa pública lista; publish sigue bloqueado hasta tener worktree limpio y pasada manual final según checklist.
+
+## 2026-06-07 — Higiene de release: ignorar `.pnpm-store/`
+
+- **Agente:** Codex
+- **Plan:** sacar ruido local del gate de release sin bajar estándar.
+- **Cambios:** `.gitignore` ahora ignora `.pnpm-store/`, evitando que cache local de pnpm ensucie `git status` y confunda el estado real de publish.
+- **Verificación:** `./init.sh`.
+- **Cierre:** ruido local corregido; lo que sigue bloqueando publish son cambios reales sin integrar y la pasada manual de clientes.
+
+## 2026-06-14 — P2 de recovery explícito para configs globales inválidas
+
+- **Agente:** Codex
+- **Plan:** mantener el fail-closed por defecto, pero abrir una vía explícita para que `setup`/`repair` globales respalden y regeneren configs inválidas gestionadas por el arnés.
+- **Cambios:** `src/init.ts` ahora distingue parse failures recuperables de errores de lectura, soporta `--force-managed-global`, guarda backups sidecar y reutiliza un preflight cacheado para no duplicar respaldos; `src/setup.ts`, `src/repair.ts` e `src/index.ts` cablean la bandera y reportan `invalid_global_recovery` más los backups creados; `src/health.ts` propone `repair --global --force-managed-global` como fix accionable; `src/help.ts`, `README.md`, `manual-release-checklist.md` y `scripts/smoke-stdio.mjs` quedaron alineados con el contrato nuevo.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke` y `./init.sh`.
+- **Cierre:** feature archivada; ahora existe recovery explícito para configs globales rotas sin debilitar el comportamiento seguro por defecto.
+
+## 2026-06-15 — P1 de scope de health por clientes esperados
+
+- **Agente:** Codex
+- **Plan:** evitar que el health de un repo se degrade por bindings globales o repo-scoped ajenos al scaffold activo, sin perder visibilidad de fallbacks válidos ni la promoción por arranque real.
+- **Cambios:** `src/health.ts` ahora deriva clientes observables desde `scaffold.localClients`, filtra checks repo-scoped/globales irrelevantes, mantiene visibles bindings globales válidos `explicit`/`portable`/`assumed` aunque no pertenezcan al scaffold local y alinea `client_verification`/`client_readiness` persistidos con ese mismo scope; `scripts/smoke-stdio.mjs` añade el caso `codex-only` con global ajeno roto y preserva el contrato de promoción para globals `assumed`.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke` y `./init.sh`.
+- **Cierre:** feature archivada; `setup`, `doctor` y el brief local ya no se rompen por configs globales inválidas de clientes no esperados, pero siguen mostrando fallbacks válidos cuando existen.
+
+## 2026-06-15 — P1 de detección segura de repo y brief fresco
+
+- **Agente:** Codex
+- **Plan:** cerrar los dos P1 abiertos sin tocar otros contratos: endurecer la auto-detección de repo en `setup/repair --global` y hacer que `status --brief` invalide health cache cuando cambie la evidencia observada.
+- **Cambios:** `src/global-mode.ts` ya no acepta un `feature_list.json` suelto como repo detectable y exige evidencia real para root-legacy; `src/health.ts` persiste una firma ligera de inputs observados y rechaza snapshots stale; `src/status.ts` refresca `health.json` cuando `brief_only` no puede confiar en la cache; `scripts/smoke-stdio.mjs` ahora cubre cwd con marker débil, repo legacy real detectado y refresh del brief tras romper `.codex/config.toml`.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke`, repro manual de `setup --global` con marker débil, repro manual de `status --brief --json` tras borrar `.codex/config.toml`, y `./init.sh`.
+- **Cierre:** feature archivada; el camino global ya no muta cwd arbitrarios por detección débil y el fallback CLI del brief vuelve a ser observable y confiable.
+
+## 2026-06-15 — P1 de gate de publicación y versionado explícito
+
+- **Agente:** Codex
+- **Plan:** cerrar los últimos huecos release-facing sin tocar el runtime fuera de ese alcance: alinear la versión publicada y forzar un gate explícito para la checklist manual de clientes.
+- **Cambios:** `package.json`, `src/version.ts` y `src/index.ts` quedaron alineados en `1.1.0`; `CHANGELOG.md` abrió la sección `1.1.0` y vació `Unreleased`; se añadió `release-readiness.json` como evidencia manual rastreable; `scripts/release-publish-check.mjs` valida versión, changelog y signoff manual; `scripts/release-check.sh`, `README.md`, `src/help.ts`, `manual-release-checklist.md` y `scripts/smoke-stdio.mjs` quedaron alineados con el flujo `release:check -> checklist -> release:publish-check`.
+- **Verificación:** `npm run typecheck`, `npm run build`, `npm run smoke`, `npm run release:check -- --allow-dirty`, `npm run release:publish-check -- --skip-automated` y `./init.sh`.
+- **Cierre:** feature archivada; la release ya no puede salir con drift de versión/changelog ni sin evidencia manual cerrada. `release:publish-check` queda rojo hasta completar de verdad `release-readiness.json`.
+
+## 2026-06-15 — Pasada de release-readiness parcial
+
+- **Agente:** Codex
+- **Plan:** cerrar de forma honesta todos los checks de publish que ya tenían evidencia actual y dejar explícito el bloqueo real restante.
+- **Cambios:** `release-readiness.json` ahora marca `repo_base`, `vscode`, `claude_code_repo_scoped`, `codex_repo_scoped`, `opencode` y `broken_global_recovery` como cerrados con notas rastreables; `claude_desktop` quedó abierto con nota de bloqueo real por falta de handshake frontend verificable en esta máquina.
+- **Verificación:** `./init.sh`, `node dist/index.js status --repo-path . --brief --json`, `node dist/index.js doctor --repo-path . --json`, lectura de `.harness/metrics/client-verifications.json`, inspección de configs globales reales y reproducción explícita de `setup/repair --global` con `HOME` temporal para validar fail-closed + backup + recovery forzado.
+- **Cierre:** el gate de publish queda acotado a `claude_desktop`; si ese cliente no es parte del release target, el siguiente paso es cambiar ese requisito de negocio antes de publicar.
+
+## 2026-06-15 — Ajuste de publish para Claude Desktop opcional
+
+- **Agente:** Codex
+- **Plan:** dejar de tratar `claude_desktop` como requisito universal de publish sin perder la trazabilidad cuando sí entra en scope.
+- **Cambios:** `release-readiness.json` ahora deja `claude_desktop` como `required=false`; `manual-release-checklist.md` y `README.md` aclaran que los checks opcionales no bloquean publish, pero si se cubren deben validarse con evidencia real antes de marcarse como completados.
+- **Verificación:** `npm run release:publish-check -- --skip-automated` y `./init.sh`.
+- **Cierre:** publish gate verde con el scope actual; Claude Desktop sigue verificable y auditable cuando el release target realmente lo incluye.
+
+## 2026-06-15 — Paso explícito de tests y README en el flujo
+
+- **Agente:** Codex
+- **Plan:** volver explícito en el flujo del harness que antes de `done` hay que correr verificación relevante y actualizar README/docs si el cambio afecta uso visible.
+- **Cambios:** `AGENTS.md`, `README.md` y `.harness-docs/verification.md` ahora muestran el paso `tests+README`; `CODEX.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `.claude/commands/harness.md` y `.opencode/commands/harness.md` endurecen la regla de cierre; `leader`, `implementer` y `reviewer` quedaron alineados en `.claude/agents/`, `.github/prompts/` y `src/init.ts`; el marker de agentes subió a `v2` y `promptBody()` acepta `v1|v2` para facilitar `setup --update`.
+- **Verificación:** `./init.sh`.
+- **Cierre:** feature archivada; el contrato del harness ya no deja implícito el paso de tests/README antes de `done`.
+
+## 2026-06-15 — Paso explícito de CHANGELOG para cambios release-facing
+
+- **Agente:** Codex
+- **Plan:** hacer explícito en el flujo del harness que los cambios release-facing deben dejar `CHANGELOG.md` alineado antes de `done`, y propagar esa regla a prompts, comandos y templates scaffolded.
+- **Cambios:** `AGENTS.md`, `README.md`, `CHECKPOINTS.md`, `.harness-docs/verification.md`, `CODEX.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `.claude/commands/harness.md` y `.opencode/commands/harness.md` ahora exigen `CHANGELOG.md` o justificación explícita cuando el cambio es release-facing; `leader`, `implementer` y `reviewer` quedaron alineados en `.claude/agents/`, `.github/prompts/` y `src/init.ts`; el marker gestionado subió a `v3` y `promptBody()` acepta markers antiguos; además, el scaffold base de `.harness/progress/current.md` volvió a incluir `Feature en curso`, `Inicio` y `Agente` para converger con el contrato documentado.
+- **Verificación:** `./init.sh`.
+- **Cierre:** feature archivada; el flujo del harness ahora hace visible el paso `tests+README+CHANGELOG` y deja alineado el material scaffolded con esa regla.
+
+## 2026-06-16 — Métricas reales de response y startup brief mínimo
+
+- **Agente:** Codex
+- **Plan:** medir bytes/tokens locales realmente devueltos por `harness_status` y `status`, y bajar el hot path de arranque moviendo el contrato recomendado a `brief_minimal`.
+- **Cambios:** `src/session-metrics.ts` ahora registra `response_output_bytes` / `response_output_tokens` y breakdown por surface; `src/status.ts` añade `brief_minimal`, evita leer backlog/current/inbox en ese modo y registra output de `cli:status:*`; `src/tools/harness-status.ts`, `src/tools/harness-metrics.ts` y `src/tui.ts` quedaron alineados con la métrica nueva; `README.md`, `CODEX.md`, `CLAUDE.md`, `.claude/commands/`, `.opencode/commands/`, `.claude/agents/`, `.github/prompts/`, `.github/copilot-instructions.md`, `.harness-docs/model_interface.md` y `src/init.ts` mueven el startup recomendado a `brief_minimal` sin quitar `brief_only`; el marker gestionado subió a `v4` para que `setup --update` propague el contrato nuevo; `scripts/smoke-stdio.mjs` ahora cubre el snapshot mínimo y la persistencia de métricas por surface.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs`, comprobación local de `node dist/index.js status --repo-path . --brief-minimal --json`, comprobación local de `node dist/index.js status --repo-path . --brief --json`, y `./init.sh`.
+- **Cierre:** feature archivada; el arnés ya distingue el costo local de `brief_minimal` vs `brief_only` y el arranque recomendado baja a un snapshot mínimo verificable.
+
+## 2026-06-17 — Loop engineering canónico para workflow y runtime
+
+- **Agente:** Codex
+- **Plan:** integrar un loop `plan_execute_verify` trazable y reusable entre workflow, runtime MCP, surfaces ricas, agent y scaffold sin cambiar los estados del backlog.
+- **Cambios:** se añadió `src/loop.ts` como fuente de verdad de policy, reducción y diagnósticos; `src/config.ts` acepta `loopPolicy`; `harness_update`, `setup` y `repair` siembran/sincronizan loops; se añadieron `harness_loop_status`, `harness_loop_event` y `harness://loop/active`; `harness_status`, `status`, `doctor`, `health`, `tui` y `agent` ahora exponen/consumen `loop_summary`; `src/init.ts`, `AGENTS.md`, `README.md`, `CODEX.md`, `CLAUDE.md`, prompts, agents y adapters quedaron alineados al route-back automático; el smoke ahora cubre retries válidos/inválidos, reconciliación por `setup --update`/`repair` y el contract nuevo del loop.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** feature archivada; el repo conserva el loop terminal de la feature cerrada y `repair` puede reseedear loops activos faltantes sin inventar historial.
+
+## 2026-06-17 — Simulación de flujos para costo local de tokens
+
+- **Agente:** Codex
+- **Plan:** añadir una simulación reproducible por flujo para estimar bytes y tokens locales del harness sin contaminar `.harness/metrics/session.json`.
+- **Cambios:** se añadió `src/simulate.ts` con el comando `arufheim-harness simulate`; `src/session-metrics.ts` ahora exporta la heurística reusable de estimación; `src/doctor.ts` expone un builder reutilizable sin persistencia; `src/index.ts` y `src/help.ts` quedaron alineados con la surface nueva; `README.md`, `CODEX.md`, `CLAUDE.md`, `.claude/commands/harness.md`, `.opencode/commands/harness.md` y `src/init.ts` documentan el comando; `scripts/smoke-stdio.mjs` cubre `startup`, `loop`, `triage` y verifica que la simulación no muta `session.json`.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs`, `node dist/index.js simulate --repo-path . --flow startup --json`, `node dist/index.js simulate --repo-path . --flow loop,triage` y `./init.sh`.
+- **Cierre:** feature archivada; el repo ya puede estimar el costo local de startup, activation, loop y triage sin mezclar esa simulación con las métricas reales de sesión.
+
+## 2026-06-17 — Corte de release 1.2.0
+
+- **Agente:** Codex
+- **Plan:** alinear versión, changelog y release-readiness para publicar la nueva release con loop engineering y simulate.
+- **Cambios:** `package.json` y `release-readiness.json` quedaron en `1.2.0`; `CHANGELOG.md` movió los cambios de `Unreleased` a `## 1.2.0`; se resembró el loop de la feature de release para no romper `doctor`; el gate `release:check` pasó contra el tarball real instalado en un repo temporal y `release:publish-check -- --skip-automated` quedó verde.
+- **Verificación:** `node dist/index.js repair --repo-path .`, `HARNESS_RELEASE_ALLOW_DIRTY=1 npm run release:check -- --allow-dirty`, `npm run release:publish-check -- --skip-automated` y `./init.sh`.
+- **Cierre:** feature archivada; el repo queda listo para publicar `1.2.0`.

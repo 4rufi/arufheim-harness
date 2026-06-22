@@ -8,6 +8,10 @@ export interface SessionMetrics {
   updated_at: string;
   tool_calls: number;
   tool_calls_by_name: Record<string, number>;
+  response_output_bytes: number;
+  response_output_tokens: number;
+  response_output_bytes_by_surface: Record<string, number>;
+  response_output_tokens_by_surface: Record<string, number>;
   repo_reads: number;
   repo_read_bytes: number;
   repo_writes: number;
@@ -25,8 +29,22 @@ type MetricsMutation = (metrics: SessionMetrics) => void;
 
 const writeLocks = new Map<string, Promise<void>>();
 
-function estimateTokens(bytes: number): number {
+export function estimateLocalTokens(bytes: number): number {
   return Math.ceil(bytes / 4);
+}
+
+export function estimateSerializedPayload(value: unknown): {
+  bytes: number;
+  tokens: number;
+  text: string;
+} {
+  const text = JSON.stringify(value, null, 2);
+  const bytes = Buffer.byteLength(text, "utf8");
+  return {
+    bytes,
+    tokens: estimateLocalTokens(bytes),
+    text,
+  };
 }
 
 function emptyMetrics(): SessionMetrics {
@@ -36,6 +54,10 @@ function emptyMetrics(): SessionMetrics {
     updated_at: now,
     tool_calls: 0,
     tool_calls_by_name: {},
+    response_output_bytes: 0,
+    response_output_tokens: 0,
+    response_output_bytes_by_surface: {},
+    response_output_tokens_by_surface: {},
     repo_reads: 0,
     repo_read_bytes: 0,
     repo_writes: 0,
@@ -115,6 +137,23 @@ export async function recordToolCall(
   });
 }
 
+export async function recordResponseOutput(
+  repoPath: string,
+  surface: string,
+  outputBytes: number,
+): Promise<void> {
+  await mutateMetrics(repoPath, (metrics) => {
+    const estimatedTokens = estimateLocalTokens(outputBytes);
+    metrics.response_output_bytes += outputBytes;
+    metrics.response_output_tokens += estimatedTokens;
+    metrics.response_output_bytes_by_surface[surface] =
+      (metrics.response_output_bytes_by_surface[surface] ?? 0) + outputBytes;
+    metrics.response_output_tokens_by_surface[surface] =
+      (metrics.response_output_tokens_by_surface[surface] ?? 0) + estimatedTokens;
+    metrics.estimated_local_tokens += estimatedTokens;
+  });
+}
+
 export async function recordRepoRead(
   repoPath: string,
   bytes: number,
@@ -122,7 +161,7 @@ export async function recordRepoRead(
   await mutateMetrics(repoPath, (metrics) => {
     metrics.repo_reads += 1;
     metrics.repo_read_bytes += bytes;
-    metrics.estimated_local_tokens += estimateTokens(bytes);
+    metrics.estimated_local_tokens += estimateLocalTokens(bytes);
   });
 }
 
@@ -143,7 +182,7 @@ export async function recordMemoryRead(
   await mutateMetrics(repoPath, (metrics) => {
     metrics.memory_reads += 1;
     metrics.memory_read_bytes += bytes;
-    metrics.estimated_local_tokens += estimateTokens(bytes);
+    metrics.estimated_local_tokens += estimateLocalTokens(bytes);
   });
 }
 
@@ -164,6 +203,6 @@ export async function recordCommandCall(
   await mutateMetrics(repoPath, (metrics) => {
     metrics.command_calls += 1;
     metrics.command_output_bytes += outputBytes;
-    metrics.estimated_local_tokens += estimateTokens(outputBytes);
+    metrics.estimated_local_tokens += estimateLocalTokens(outputBytes);
   });
 }

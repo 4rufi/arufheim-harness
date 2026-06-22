@@ -105,6 +105,385 @@
       ],
       "sdd": true,
       "status": "done"
+    },
+    {
+      "id": 8,
+      "name": "p1_hardening_boundaries_and_config",
+      "title": "Hardening P1 de config, search_repo y smoke legacy",
+      "description": "Corrige fail-open al cargar config explícita por repo, valida include antes del glob en search_repo y alinea el smoke legacy con doctor.",
+      "acceptance": [
+        "Con --repo-path, una config inválida falla cerrado y no cae silenciosamente a defaults",
+        "Con --repo-path, ausencia de harness.config.json sigue permitiendo defaults válidos",
+        "search_repo rechaza include absolutos o con ../ antes de expandir globs",
+        "El fixture legacy del smoke incluye CODEX.md y doctor vuelve a pasar",
+        "El smoke cubre la regresión de config inválida y include inseguro"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T21:27:00.000Z"
+    },
+    {
+      "id": 9,
+      "name": "p2_workflow_lock_and_read_file_ranges",
+      "title": "P2 de serialización del workflow y read_file por rangos",
+      "description": "Serializa las mutaciones del backlog por repo y corrige read_file para seleccionar el rango pedido antes de truncar por tamaño.",
+      "acceptance": [
+        "harness_add y harness_update usan el lock de workflow por repo",
+        "Llamadas concurrentes a harness_add preservan ids únicos y no pierden features",
+        "read_file devuelve correctamente líneas tardías en archivos grandes",
+        "Si el rango elegido excede MAX_FILE_CHARS, endLine conserva el rango lógico solicitado",
+        "El smoke cubre concurrencia y lectura por rangos tardíos"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T21:43:00.000Z"
+    },
+    {
+      "id": 10,
+      "name": "inbox_signal_cleanup",
+      "title": "Limpieza de señal del inbox pendiente",
+      "description": "Excluye `README.md` y archivos reservados del inbox pendiente en tools, status, agent y TUI para reducir ruido operativo.",
+      "acceptance": [
+        "`README.md` del inbox se trata como archivo reservado y no como trabajo pendiente",
+        "`inbox_list`, `harness_status`, `agent` y `tui` comparten una única regla para listar pendientes",
+        "`inbox_consume` rechaza archivos reservados del inbox",
+        "El smoke verifica exclusión de `README.md` y rechazo de consumo reservado"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T21:39:05Z"
+    },
+    {
+      "id": 11,
+      "name": "repo_binding_hardening",
+      "title": "Hardening del binding MCP por repo",
+      "description": "Endurece el binding MCP por repo con scaffold repo-scoped para Codex y Claude Code, visibilidad de repo/config en `harness_status` y checks de doctor para configuraciones ambiguas.",
+      "acceptance": [
+        "El scaffold local genera `.codex/config.toml` y `.mcp.json` con `--repo-path` explícito",
+        "`init --global` genera entradas de VS Code, Claude Desktop, Claude Code y Codex con binding explícito",
+        "`harness_status` expone `repo_path`, `config_path`, `config_scope` y `workflow_layout`",
+        "`startup_brief` hace visible la identidad del repo al arranque",
+        "`doctor`, `init.sh` y el smoke validan bindings explícitos sin romper compatibilidad legacy"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T22:10:19Z"
+    },
+    {
+      "id": 12,
+      "name": "p3_contract_hardening_followups",
+      "title": "P3 de contratos runtime, cierre SDD y config CLI",
+      "description": "Cierra huecos post-review en cierre SDD por tool, binding fail-closed del repo, validación de rangos en read_file y edición operativa de permissionPolicy/allowedCommands.",
+      "acceptance": [
+        "harness_update rechaza cerrar features SDD sin spec ni evidencia impl/review válida",
+        "loadConfig falla cerrado cuando solo existe config global y no hay binding explícito de repo",
+        "read_file rechaza rangos invertidos y evita cargar archivos completos solo para truncar respuesta",
+        "config set permite mutar permissionPolicy, allowedCommands e ignored con validación útil",
+        "El smoke cubre cierre SDD inválido, fail-closed del binding global, rangos invertidos y config CLI"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T22:32:04Z"
+    },
+    {
+      "id": 13,
+      "name": "p4_setup_health_and_repair",
+      "title": "P4 de setup, health y repair operable",
+      "description": "Añade una capa de setup/doctor/repair observable sobre el arnés actual sin romper init, SDD, backlog, memoria ni bindings repo-scoped.",
+      "acceptance": [
+        "Existe `arufheim-harness setup` como entrada recomendada y preserva `init` como primitive compatible",
+        "`doctor` expone diagnósticos estructurados estables y `repair` repara solo assets/config gestionados por el arnés",
+        "`harness_status`, `harness://health`, la TUI y el banner de arranque comparten un resumen coherente de health, alerts y binding status",
+        "Los errores de binding/config peligrosos siguen fail-closed y las degradaciones no fatales se reportan como warnings observables",
+        "README/help/smoke cubren el camino recomendado `setup -> doctor -> repair -> init.sh` sin romper compatibilidad"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T23:15:00Z"
+    },
+    {
+      "id": 14,
+      "name": "p5_release_readiness_closure",
+      "title": "P5 de cierre de release-readiness",
+      "description": "Cierra el contrato de setup/update, versiona la nueva surface pública y codifica un check de publicación reproducible.",
+      "acceptance": [
+        "`setup` distingue el camino normal de `--update` y la ayuda/README reflejan ese contrato",
+        "La versión pública del paquete y del servidor se alinea con la nueva surface publicada",
+        "Existe un check de release reproducible que cubre verify + pack dry-run con cache temporal + worktree limpio"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-07T00:05:00Z"
+    },
+    {
+      "id": 15,
+      "name": "agents_md_managed_merge",
+      "title": "Upgrade seguro de AGENTS.md existente",
+      "description": "Preserva AGENTS.md personalizados, añade un bloque gestionado del harness y hace visible su estado en doctor/setup/repair.",
+      "acceptance": [
+        "AGENTS.md existente no se sobreescribe completo durante init/setup/repair",
+        "setup y repair pueden insertar o reconciliar un bloque gestionado acotado",
+        "doctor advierte cuando AGENTS.md existe pero no tiene bloque gestionado o quedó desactualizado",
+        "El smoke cubre preservación del contenido custom y convergencia del bloque gestionado"
+      ],
+      "status": "done",
+      "closed_at": "2026-06-06T20:35:00-04:00"
+    },
+    {
+      "id": 16,
+      "name": "p6_global_binding_operability_hardening",
+      "title": "P6 de operabilidad y hardening de bindings globales",
+      "description": "Endurece setup/repair globales, diferencia bindings asumidos de bindings realmente portables y añade una checklist manual de release por cliente.",
+      "acceptance": [
+        "`setup --global` y `repair --global` no sobrescriben configs globales inválidas; fallan cerrado con fix manual coherente",
+        "Las rutas globales de setup/repair muestran pasos de activación o reinicio por cliente",
+        "`doctor` distingue bindings globales verificados de bindings asumidos y degrada los casos no verificables",
+        "README, help, smoke y `manual-release-checklist.md` reflejan el contrato operativo nuevo"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-06T21:35:00-04:00"
+    },
+    {
+      "id": 17,
+      "name": "p7_client_verification_handshake",
+      "title": "P7 de handshake y verificación automática por cliente",
+      "description": "Persistir verificación real por cliente, registrar handshake automático desde bindings generados y exponer estados configured/verified/stale en health.",
+      "acceptance": [
+        "Los bindings generados incluyen identidad de cliente para que el runtime sepa qué frontend inició el MCP",
+        "El runtime persiste una verificación por cliente con repo observado, config usada y evidencia suficiente para detectar staleness",
+        "`doctor`, `harness_status`, `harness://health` y la TUI distinguen configuración escrita de integración realmente verificada",
+        "Un binding global `assumed` deja de degradar cuando existe verificación válida y vuelve a degradar si queda stale o missing",
+        "README/help/smoke cubren el contrato nuevo sin romper compatibilidad con clientes no actualizados"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-07T03:40:37Z"
+    },
+    {
+      "id": 18,
+      "name": "p8_repo_scoped_preferred_global_setup",
+      "description": "Cuando setup/repair globales se ejecutan desde un repo, también deben dejar listos los bindings repo-scoped preferidos para clientes con fallback global ambiguo.",
+      "acceptance": [
+        "`setup --global` y `repair --global` pueden detectar un repo activo y dejar scaffold repo-scoped preferido para Claude Code y Codex",
+        "El comportamiento no debe contaminar cwd arbitrarios fuera de un repo harness",
+        "La salida operativa debe distinguir config global fallback de bindings repo-scoped preferidos",
+        "README/help/smoke deben reflejar el camino híbrido global + repo-scoped"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-07T05:10:00Z"
+    },
+    {
+      "id": 19,
+      "name": "release_docs_closure",
+      "description": "Cerrar notas de release y guía mínima de publicación para 1.1.0.",
+      "status": "done",
+      "closed_at": "2026-06-07T06:25:00Z"
+    },
+    {
+      "id": 20,
+      "name": "release_hygiene_ignore_pnpm_store",
+      "description": "Ignorar `.pnpm-store/` local para que no ensucie el gate de release.",
+      "status": "done",
+      "closed_at": "2026-06-07T06:40:00Z"
+    },
+    {
+      "id": 21,
+      "name": "repo_bootstrap_contract_alignment",
+      "description": "Alinear scaffold repo-local, docs de arranque y health para repos con setup parcial por cliente, incluyendo init.sh repo-local y contratos Codex-only coherentes.",
+      "acceptance": [
+        "Health solo exige adapters cliente realmente scaffolded en el repo",
+        "El scaffold repo-local incluye `init.sh` ejecutable o deja de referenciarlo",
+        "`CODEX.md` y `AGENTS.md` funcionan también en repos Codex-only sin depender de assets Claude",
+        "El arranque local muestra el frontend correcto según target",
+        "Smoke cubre `setup --clients codex` y confirma repo sano"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-07T07:15:00-04:00"
+    },
+    {
+      "id": 22,
+      "name": "managed_repo_scoped_update_convergence",
+      "description": "Hacer que setup --update reconcilie entrypoints y bindings repo-scoped ya existentes, y falle claro si no puede escribir un managed file.",
+      "acceptance": [
+        "`setup --update` reescribe entrypoints managed repo-scoped desactualizados",
+        "Los bindings repo-scoped vuelven a incluir `--client` al reconciliar configs viejas",
+        "Errores `EPERM` o `EACCES` ya no quedan silenciados durante la reconciliación managed",
+        "Smoke cubre el caso de repo con configs repo-scoped viejas"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-07T05:20:00-04:00"
+    },
+    {
+      "id": 23,
+      "name": "p9_operability_and_release_hardening",
+      "description": "Cerrar la brecha operativa del harness con repoPath estable, fallback CLI de status, startup brief barato y release check sobre tarball instalado.",
+      "acceptance": [
+        "setup/repair/init/doctor persisten y comparan repo_path normalizado sin falsos stale por rutas relativas",
+        "Existe una superficie CLI para obtener el startup brief cuando el MCP no cargó tools",
+        "harness_status(mode: \"brief_only\") evita lecturas pesadas y el fallback CLI reutiliza health persistido cuando basta",
+        "release:check instala el tarball empaquetado en un repo temporal y valida setup/doctor desde el artefacto real",
+        "Docs y smoke cubren el flujo recomendado y reducen churn operativo del release"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-14T21:54:48-04:00"
+    },
+    {
+      "id": 24,
+      "name": "p10_release_and_brief_closure",
+      "description": "Cerrar packaging de release docs, cubrir status/repair en el tarball publicado, sacar archived_count del hot path del brief y alinear changelog.",
+      "acceptance": [
+        "El artefacto npm publicado incluye la guía de release que README referencia o la referencia deja de estar rota",
+        "release:check del tarball instalado cubre al menos setup, status, repair y doctor",
+        "brief_only deja de parsear feature_history.json en cada arranque para calcular archived_count",
+        "CHANGELOG y docs de release describen el comportamiento real del gate publicado"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-14T22:12:49-04:00"
+    },
+    {
+      "id": 26,
+      "name": "p11_activation_contract_and_release_gate",
+      "title": "P1 de claridad operativa, adapters y gate automático de release",
+      "description": "Hace explícito el estado operativo por cliente, alinea el contrato de arranque entre setup/status/adapters y añade CI para el gate de release.",
+      "acceptance": [
+        "`setup`, `repair`, `doctor` y `status` exponen por cliente si el binding está verificado, configurado pendiente de activación o requiere fix manual",
+        "Los adapters generados para Codex, Claude y OpenCode usan un protocolo de arranque corto y consistente con el fallback CLI documentado",
+        "El repo incluye un workflow de CI que corre typecheck, build, smoke y release:check",
+        "El scaffold repo-scoped de Codex converge con `--client codex` y deja de degradar este repo"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-14T22:55:00-04:00"
+    },
+    {
+      "id": 27,
+      "name": "p12_global_config_force_recovery",
+      "title": "P2 de recuperación explícita para configs globales inválidas",
+      "description": "Añade una ruta explícita de setup/repair global para respaldar y regenerar configs globales inválidas gestionadas por el arnés, manteniendo fail-closed por defecto.",
+      "acceptance": [
+        "Sin `--force-managed-global`, setup/repair global siguen fallando cerrado ante JSON/JSONC/TOML inválidos",
+        "Con `--force-managed-global`, el arnés crea un backup sidecar antes de regenerar una config global válida gestionada",
+        "La recuperación explícita solo toca los clientes globales seleccionados",
+        "Los resúmenes de setup/repair informan los backups creados",
+        "Help, README, doctor y smoke reflejan el contrato nuevo"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-14T23:45:00-04:00"
+    },
+    {
+      "id": 28,
+      "name": "p13_expected_client_health_scope",
+      "title": "P1 de scope de health por clientes esperados",
+      "description": "Hace que setup/doctor/status de un repo no fallen por bindings globales o repo-scoped inválidos de clientes que ese repo no espera usar, sin ocultar fallbacks válidos ni clientes activos.",
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-15T00:07:38-04:00"
+    },
+    {
+      "id": 29,
+      "name": "p14_repo_context_and_brief_freshness",
+      "title": "P1 de detección segura de repo y brief fresco",
+      "description": "Evita que setup --global detecte como repo válido un cwd con markers débiles y hace que status --brief invalide su health cache cuando cambian las entradas observadas.",
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-15T00:38:48-04:00"
+    },
+    {
+      "id": 30,
+      "name": "p15_release_publish_gate",
+      "title": "P1 de gate de publicación y versionado explícito",
+      "description": "Cierra el versionado de release y convierte la checklist manual de clientes en un gate explícito y rastreable antes de publicar.",
+      "acceptance": [
+        "La versión pública del paquete, del runtime MCP y del changelog queda alineada",
+        "Existe un gate separado de publish que valida changelog + versión + signoff manual",
+        "La checklist manual de release queda en un artefacto machine-readable y bloquea publish si falta cerrar checks requeridos",
+        "El gate manual no contamina la CI automatizada ordinaria",
+        "README, help y smoke reflejan el flujo nuevo de publicación"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-15T18:01:59-04:00"
+    },
+    {
+      "id": 31,
+      "name": "release_optional_claude_desktop",
+      "title": "Ajuste de release para Claude Desktop opcional",
+      "description": "Hace opcional el signoff de Claude Desktop para publish, manteniendo la verificación real cuando ese cliente entra en scope.",
+      "acceptance": [
+        "Claude Desktop deja de bloquear publish cuando no forma parte del scope de la release",
+        "La checklist y la evidencia machine-readable siguen permitiendo marcarlo como validado cuando sí se cubre",
+        "release:publish-check pasa con el mismo contrato sin tocar la lógica del gate"
+      ],
+      "sdd": false,
+      "status": "done",
+      "closed_at": "2026-06-15T22:29:24-04:00"
+    },
+    {
+      "id": 32,
+      "name": "flow_test_and_readme_step",
+      "title": "Paso explícito de tests y README en el flujo",
+      "description": "Hace explícito en el flujo del harness que antes de done hay que correr verificación relevante y actualizar README/docs si cambió el uso visible.",
+      "acceptance": [
+        "El flujo visible del harness muestra un paso explícito de tests/verificación antes de done",
+        "El flujo visible del harness muestra un paso explícito de actualización de README/docs cuando cambia el uso visible",
+        "Prompts, comandos cortos y templates scaffolded quedan alineados con ese contrato",
+        "Los repos existentes pueden converger al contrato nuevo vía setup --update"
+      ],
+      "sdd": false,
+      "status": "done",
+      "closed_at": "2026-06-15T22:49:17-04:00"
+    },
+    {
+      "id": 33,
+      "name": "flow_release_changelog_step",
+      "title": "Paso explícito de CHANGELOG para cambios release-facing",
+      "description": "Hace explícito en el flujo del harness que los cambios release-facing deben dejar CHANGELOG alineado antes de done.",
+      "sdd": false,
+      "status": "done",
+      "closed_at": "2026-06-15T23:00:08-04:00"
+    },
+    {
+      "id": 34,
+      "name": "startup_response_metrics_and_minimal_brief",
+      "title": "Métricas reales de response y startup brief mínimo",
+      "description": "Mide bytes/tokens locales devueltos por harness_status/status y añade un modo brief_minimal para reducir costo y latencia del arranque.",
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-16T13:07:20-04:00"
+    },
+    {
+      "id": 35,
+      "name": "loop_engineering_harness",
+      "title": "Loop engineering canónico para workflow y runtime",
+      "description": "Integra un loop Plan-Execute-Verify explícito y observable en workflow, runtime MCP, surfaces ricas, agent y scaffold sin cambiar los estados del backlog.",
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-18T01:53:38.685Z"
+    },
+    {
+      "id": 36,
+      "name": "token_flow_simulation",
+      "title": "Simulación de flujos para costo local de tokens",
+      "description": "Añade una simulación reproducible por flujo para estimar bytes y tokens locales del startup y surfaces relacionadas sin contaminar las métricas reales de sesión.",
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-18T02:48:21.906Z"
+    },
+    {
+      "id": 37,
+      "name": "release_1_2_0_cut",
+      "title": "Corte de release 1.2.0",
+      "description": "Alinea versión, changelog y release-readiness para publicar la nueva versión con loop engineering y simulate.",
+      "sdd": false,
+      "status": "done",
+      "closed_at": "2026-06-18T03:15:57.332Z"
     }
   ]
 }

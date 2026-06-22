@@ -3,11 +3,15 @@ import { access, readFile } from "node:fs/promises";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { ResolvedharnessConfig } from "../config.js";
+import { evaluateHarnessHealth } from "../health.js";
+import { readLoopStatus } from "../loop.js";
 import { JsonlLogger } from "../logger.js";
 import { assertExistingPathWithinRepo } from "../safety.js";
 
 const RAW_CONFIG_RESOURCE_URI = "harness://config/raw";
 const RESOLVED_CONFIG_RESOURCE_URI = "harness://config/resolved";
+const HEALTH_RESOURCE_URI = "harness://health";
+const ACTIVE_LOOP_RESOURCE_URI = "harness://loop/active";
 const LOG_RESOURCE_URI = "harness://logs/main";
 
 const MAX_LOG_BYTES = 128 * 1024;
@@ -31,12 +35,12 @@ export function registerRepoResources(
       return withResourceLogging(logger, "raw_config", uri.href, async () => {
         const exists = await fileExists(config.configPath);
         const safePath = exists
-          ? await assertExistingPathWithinRepo(
-              config.repoPath,
-              config.configPath,
-            )
+          ? await resolveReadableConfigPath(config.repoPath, config.configPath)
           : config.configPath;
         const text = exists ? await readFile(safePath, "utf8") : "";
+        const scope = isWithinRepo(config.repoPath, safePath)
+          ? "repo"
+          : "external";
 
         return {
           contents: [
@@ -46,7 +50,11 @@ export function registerRepoResources(
               text,
               _meta: {
                 exists,
-                relativePath: relativize(config.repoPath, safePath),
+                scope,
+                relativePath:
+                  scope === "repo"
+                    ? relativize(config.repoPath, safePath)
+                    : safePath,
               },
             },
           ],
@@ -85,6 +93,60 @@ export function registerRepoResources(
           };
         },
       );
+    },
+  );
+
+  server.registerResource(
+    "health",
+    HEALTH_RESOURCE_URI,
+    {
+      title: "harness Health",
+      description:
+        "The effective health snapshot shared by doctor, harness_status, TUI and the startup banner.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      assertExpectedUri(uri.href, HEALTH_RESOURCE_URI);
+
+      return withResourceLogging(logger, "health", uri.href, async () => {
+        const snapshot = await evaluateHarnessHealth(config.repoPath);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "application/json",
+              text: JSON.stringify(snapshot, null, 2),
+            },
+          ],
+        };
+      });
+    },
+  );
+
+  server.registerResource(
+    "active_loop",
+    ACTIVE_LOOP_RESOURCE_URI,
+    {
+      title: "harness Active Loop",
+      description:
+        "The active plan-execute-verify loop state for the current feature, or exists=false when no feature is active.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      assertExpectedUri(uri.href, ACTIVE_LOOP_RESOURCE_URI);
+
+      return withResourceLogging(logger, "active_loop", uri.href, async () => {
+        const status = await readLoopStatus(config.repoPath);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "application/json",
+              text: JSON.stringify(status, null, 2),
+            },
+          ],
+        };
+      });
     },
   );
 
@@ -234,17 +296,41 @@ function relativize(root: string, filePath: string): string {
 function redactResolvedConfig(
   config: ResolvedharnessConfig,
 ): Record<string, unknown> {
+  const configPath = isWithinRepo(config.repoPath, config.configPath)
+    ? relativize(config.repoPath, config.configPath)
+    : config.configPath;
+  const logFilePath =
+    config.logFilePath && isWithinRepo(config.repoPath, config.logFilePath)
+      ? relativize(config.repoPath, config.logFilePath)
+      : config.logFilePath;
+
   return {
     ...config,
     // Avoid leaking absolute internal paths unless the client really needs them.
     repoPath: ".",
-    configPath: relativize(config.repoPath, config.configPath),
-    logFilePath: config.logFilePath
-      ? relativize(config.repoPath, config.logFilePath)
-      : undefined,
+    configPath,
+    logFilePath,
   };
 }
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function resolveReadableConfigPath(
+  repoPath: string,
+  configPath: string,
+): Promise<string> {
+  if (isWithinRepo(repoPath, configPath)) {
+    return assertExistingPathWithinRepo(repoPath, configPath);
+  }
+
+  return configPath;
+}
+
+function isWithinRepo(repoPath: string, filePath: string): boolean {
+  const absoluteRepoPath = repoPath.endsWith("/")
+    ? repoPath
+    : `${repoPath}/`;
+  return filePath === repoPath || filePath.startsWith(absoluteRepoPath);
 }

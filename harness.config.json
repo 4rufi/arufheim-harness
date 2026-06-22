@@ -1,11 +1,81 @@
 {
   "version": 1,
   "repoPath": ".",
-  "allowedCommands": ["pnpm test", "npm test", "yarn test", "ls", "pwd"],
-  "ignored": ["node_modules/**", ".git/**", "dist/**", ".harness/**"],
+  "allowedCommands": [
+    "pnpm test",
+    "npm test",
+    "yarn test",
+    "ls",
+    "pwd"
+  ],
+  "ignored": [
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    ".harness/**"
+  ],
   "permissionPolicy": {
     "mode": "always_allow",
     "allowedTools": [],
     "allowedRisk": []
+  },
+  "agentRouting": {
+    "defaultProvider": "anthropic",
+    "effort": "auto",
+    "complexityThreshold": 5,
+    "autoProviderRouting": true,
+    "showRouting": true,
+    "costStrategy": "quality_first",
+    "models": {
+      "anthropic": {
+        "fast": "claude-3-5-haiku-latest",
+        "deep": "claude-3-7-sonnet-latest"
+      },
+      "openai": {
+        "fast": "gpt-4.1",
+        "deep": "gpt-4.1"
+      },
+      "openai-codex": {
+        "fast": "gpt-5.5-codex",
+        "deep": "gpt-5.5"
+      },
+      "claude-code": {
+        "fast": "claude-haiku-4.5",
+        "deep": "claude-sonnet-4.6"
+      },
+      "copilot-cli": {
+        "fast": "gpt-4.1",
+        "deep": "claude-3-7-sonnet-latest"
+      },
+      "gemini-cli": {
+        "fast": "gemini-3-flash",
+        "deep": "gemini-3-pro"
+      },
+      "gemini-code-assist": {
+        "fast": "gemini-3-flash",
+        "deep": "gemini-3-pro"
+      }
+    },
+    "taskRouting": {
+      "architecture": "deep",
+      "reasoning": "deep",
+      "refactor": "deep",
+      "review": "deep",
+      "tooling": "fast",
+      "frontend": "deep",
+      "debug": "deep",
+      "pr": "deep",
+      "execution": "auto",
+      "long_context": "deep",
+      "general": "auto"
+    }
+  },
+  "scaffold": {
+    "localClients": [
+      "claude",
+      "copilot",
+      "opencode",
+      "codex"
+    ]
   }
 }

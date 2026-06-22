@@ -15,3 +15,5 @@ Un cambio en harness está realmente listo solo si:
 - `progress/current.md` respeta la plantilla canónica del arnés
 - `progress/history.md` conserva formato append-only y recibe el cierre de cada sesión
 - `feature_list.json`, `progress/current.md` y `progress/history.md` reflejan el estado real
+- README/docs quedaron alineados o existe justificación explícita de no aplicación
+- Si el cambio es release-facing, `CHANGELOG.md` quedó alineado o existe justificación explícita de no aplicación

@@ -6,6 +6,7 @@ Describe qué parte del arnés es común y qué parte depende del cliente.
 
 - layout en `.harness/` y `.harness-docs/`
 - `startup_brief`
+- `harness_loop_status` cuando hay feature activa
 - `mem_context`
 - artifacts en `specs/` y `.harness/progress/`
 - contracts versionados del arnés
@@ -41,6 +42,7 @@ Describe qué parte del arnés es común y qué parte depende del cliente.
 
 - MCP: Claude / Codex / Copilot / OpenCode = sí
 - startup contract del arnés: sí
+- loop contract del arnés: sí
 - permission policy local del harness: sí
 - metrics de tokens facturados por provider: depende del frontend
 

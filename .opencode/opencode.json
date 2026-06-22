@@ -3,7 +3,14 @@
   "mcp": {
     "arufheim-harness": {
       "type": "local",
-      "command": ["npx", "arufheim-harness", "--repo-path", "."],
+      "command": [
+        "npx",
+        "arufheim-harness",
+        "--repo-path",
+        ".",
+        "--client",
+        "opencode"
+      ],
       "enabled": true
     }
   },
@@ -14,6 +21,7 @@
     "grep": "allow",
     "list": "allow",
     "arufheim-harness_harness_status": "allow",
+    "arufheim-harness_harness_loop_status": "allow",
     "arufheim-harness_harness_metrics": "allow",
     "arufheim-harness_list_files": "allow",
     "arufheim-harness_read_file": "allow",

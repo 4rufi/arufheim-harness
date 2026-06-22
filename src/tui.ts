@@ -1,12 +1,22 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import fg from "fast-glob";
 import { loadConfig } from "./config.js";
+import {
+  evaluateHarnessHealth,
+  formatClientReadinessBrief,
+  formatHealthBrief,
+  getHealthClientLabel,
+  listClientReadinessEntries,
+} from "./health.js";
 import { readSessionMetrics, type SessionMetrics } from "./session-metrics.js";
 import { resolveExistingWithinRepo } from "./safety.js";
 import { readMemoryEntries } from "./tools/shared-memory.js";
-import { parseFeatureListText, resolveWorkflowPaths } from "./workflow.js";
+import {
+  listPendingInboxEntries,
+  parseFeatureListText,
+  resolveWorkflowPaths,
+} from "./workflow.js";
 
 // ── Catppuccin Mocha ─────────────────────────────────────────────────────────
 const P = {
@@ -135,16 +145,7 @@ async function loadNextStep(repoPath: string): Promise<string[]> {
 }
 
 async function loadInbox(repoPath: string): Promise<string[]> {
-  const workflowPaths = await resolveWorkflowPaths(repoPath);
-  try {
-    return await fg("*", {
-      cwd: path.join(repoPath, workflowPaths.inboxDir),
-      ignore: ["processed/**"],
-      onlyFiles: true,
-    });
-  } catch {
-    return [];
-  }
+  return listPendingInboxEntries(repoPath);
 }
 
 async function loadMemory(repoPath: string, limit = 4): Promise<MemEntry[]> {
@@ -209,18 +210,47 @@ function renderRuntimeLine(label: string, value: string, accent: string = P.text
   return row(left);
 }
 
+function verificationAccent(state: string): string {
+  if (state === "verified") {
+    return P.green;
+  }
+  if (state === "configured" || state === "configured_needs_activation") {
+    return P.teal;
+  }
+  if (
+    state === "stale" ||
+    state === "stale_reverification_required" ||
+    state === "invalid_manual_fix_required"
+  ) {
+    return P.yellow;
+  }
+  return P.subtext0;
+}
+
+function renderAlertLine(
+  severity: "warn" | "error",
+  message: string,
+  detail?: string,
+): string {
+  const color = severity === "error" ? P.red : P.yellow;
+  const icon = severity === "error" ? "✗" : "!";
+  const suffix = detail ? ` — ${detail}` : "";
+  return row(`  ${c(color, icon)} ${c(color, message)}${c(P.subtext0, suffix)}`);
+}
+
   // ── Main ─────────────────────────────────────────────────────────────────────
 export async function runTui(): Promise<void> {
   const config = await loadConfig();
   const root = config.repoPath;
   const permissionPolicy = config.permissionPolicy;
 
-  const [features, nextSteps, inbox, memories, metrics] = await Promise.all([
+  const [features, nextSteps, inbox, memories, metrics, health] = await Promise.all([
     loadFeatures(root),
     loadNextStep(root),
     loadInbox(root),
     loadMemory(root),
     loadMetrics(root),
+    evaluateHarnessHealth(root),
   ]);
 
   const out: string[] = [];
@@ -229,11 +259,28 @@ export async function runTui(): Promise<void> {
   out.push(tuiTop("harness"));
   out.push(row());
 
+  // ── Alerts ────────────────────────────────────────────────────────────────
+  out.push(sectionLabel("Alerts"));
+  if (health.alerts.length === 0) {
+    out.push(emptyRow("sin alertas activas"));
+  } else {
+    for (const alert of health.alerts.slice(0, 5)) {
+      out.push(renderAlertLine(alert.severity, alert.message, alert.detail));
+    }
+    if (health.alerts.length > 5) {
+      out.push(emptyRow(`... y ${health.alerts.length - 5} más`));
+    }
+  }
+
+  out.push(row());
+  out.push(sep());
+  out.push(row());
+
   // ── Features ──────────────────────────────────────────────────────────────
   out.push(sectionLabel("Features"));
   if (features.length === 0) {
     out.push(
-      emptyRow("sin features registradas — corre arufheim-harness init"),
+      emptyRow("sin features registradas — corre arufheim-harness setup"),
     );
   } else {
     const sorted = [...features].sort(
@@ -276,6 +323,55 @@ export async function runTui(): Promise<void> {
   out.push(sectionLabel("Runtime"));
   out.push(
     renderRuntimeLine(
+      "Health",
+      formatHealthBrief(health),
+      health.doctor_summary.status === "ok"
+        ? P.green
+        : health.doctor_summary.status === "degraded"
+          ? P.yellow
+          : P.red,
+    ),
+  );
+  out.push(
+    renderRuntimeLine(
+      "Loop",
+      health.loop_summary
+        ? `${health.loop_summary.phase} a${health.loop_summary.attempt_index} r${health.loop_summary.review_round} next=${health.loop_summary.next_actor}`
+        : "none",
+      health.loop_summary ? P.blue : P.subtext0,
+    ),
+  );
+  out.push(
+    renderRuntimeLine("Binding", health.binding_status.state, P.teal),
+  );
+  out.push(
+    renderRuntimeLine(
+      "Activation",
+      formatClientReadinessBrief(health.client_readiness),
+      P.teal,
+    ),
+  );
+  for (const entry of listClientReadinessEntries(health.client_readiness)) {
+    const suffix = entry.status.verified_at
+      ? ` (${entry.status.verified_at.slice(0, 10)})`
+      : "";
+    out.push(
+      renderRuntimeLine(
+        getHealthClientLabel(entry.client),
+        `${entry.status.state}${suffix}`,
+        verificationAccent(entry.status.state),
+      ),
+    );
+  }
+  out.push(
+    renderRuntimeLine(
+      "Verified",
+      health.last_verified_at ?? "nunca",
+      health.last_verified_at ? P.subtext0 : P.yellow,
+    ),
+  );
+  out.push(
+    renderRuntimeLine(
       "Policy",
       permissionPolicy.mode,
       permissionPolicy.mode === "always_allow"
@@ -295,7 +391,7 @@ export async function runTui(): Promise<void> {
   out.push(
     renderRuntimeLine(
       "Metrics",
-      `tok≈${metrics.estimated_local_tokens} tools=${metrics.tool_calls} cmd=${metrics.command_calls}`,
+      `tok≈${metrics.estimated_local_tokens} resp≈${metrics.response_output_tokens} tools=${metrics.tool_calls} cmd=${metrics.command_calls}`,
       P.text,
     ),
   );

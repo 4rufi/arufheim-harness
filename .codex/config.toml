@@ -1,0 +1,4 @@
+[mcp_servers.arufheim-harness]
+command = "npx"
+args = ["--yes", "arufheim-harness", "--repo-path", ".", "--client", "codex"]
+cwd = "."

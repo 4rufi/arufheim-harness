@@ -12,7 +12,7 @@ harness es un servidor MCP local por `stdio`.
 
 ## Restricciones duras
 
-- No hay transporte HTTP en este corte
+- El servidor MCP sigue siendo `stdio`; llamadas HTTP salientes solo aplican al comando opcional `agent`
 - `stdout` es solo para JSON-RPC MCP
 - Todo path se resuelve dentro de `repoPath`
 - `run_command` ejecuta solo comandos allowlisted

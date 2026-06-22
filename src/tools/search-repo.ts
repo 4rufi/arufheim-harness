@@ -8,6 +8,7 @@ import type { ResolvedharnessConfig } from "../config.js";
 import { JsonlLogger } from "../logger.js";
 import { recordRepoRead, recordToolCall } from "../session-metrics.js";
 import {
+  assertSafeGlobPattern,
   MAX_SEARCH_FILE_BYTES,
   MAX_SEARCH_RESULTS,
   resolveExistingWithinRepo,
@@ -73,6 +74,9 @@ export function registerSearchRepoTool(
         }
 
         const ctxLines = context_lines ?? 0;
+        if (include) {
+          assertSafeGlobPattern(include);
+        }
 
         const files = await fg(include ?? "**/*", {
           cwd: config.repoPath,

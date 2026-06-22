@@ -1,3 +1,4 @@
+import fg from "fast-glob";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -11,6 +12,7 @@ export interface WorkflowPaths {
   inboxProcessedDir: string;
   memoryPath: string;
   metricsPath: string;
+  loopMetricsDir: string;
 }
 
 export interface WorkflowFeature {
@@ -68,6 +70,10 @@ export const DEFAULT_HISTORY_MD = `# Bitácora histórica (append-only)
 ---
 `;
 
+export const INBOX_RESERVED_BASENAMES = new Set(["README.md"]);
+
+const workflowWriteLocks = new Map<string, Promise<void>>();
+
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
     await access(targetPath);
@@ -92,6 +98,7 @@ export async function resolveWorkflowPaths(
       inboxProcessedDir: ".harness/inbox/processed",
       memoryPath: ".harness/memory.sqlite",
       metricsPath: ".harness/metrics/session.json",
+      loopMetricsDir: ".harness/metrics/loops",
     };
   }
 
@@ -107,6 +114,7 @@ export async function resolveWorkflowPaths(
       inboxProcessedDir: ".harness/inbox/processed",
       memoryPath: ".harness/memory.sqlite",
       metricsPath: ".harness/metrics/session.json",
+      loopMetricsDir: ".harness/metrics/loops",
     };
   }
 
@@ -120,6 +128,7 @@ export async function resolveWorkflowPaths(
     inboxProcessedDir: "inbox/processed",
     memoryPath: ".harness/memory.sqlite",
     metricsPath: ".harness/metrics/session.json",
+    loopMetricsDir: ".harness/metrics/loops",
   };
 }
 
@@ -209,4 +218,53 @@ export async function readFeatureListDocument(
     paths,
     document: parseFeatureListText(raw),
   };
+}
+
+export function isPendingInboxEntryName(name: string): boolean {
+  return !name.startsWith(".") && !INBOX_RESERVED_BASENAMES.has(name);
+}
+
+export async function listPendingInboxEntries(repoPath: string): Promise<string[]> {
+  const workflowPaths = await resolveWorkflowPaths(repoPath);
+  try {
+    const entries = await fg("*", {
+      cwd: path.join(repoPath, workflowPaths.inboxDir),
+      ignore: ["processed/**"],
+      onlyFiles: true,
+      dot: false,
+    });
+    return entries.filter(isPendingInboxEntryName);
+  } catch {
+    return [];
+  }
+}
+
+export async function withWorkflowWriteLock<T>(
+  repoPath: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const key = path.resolve(repoPath);
+  const previous = workflowWriteLocks.get(key) ?? Promise.resolve();
+
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  workflowWriteLocks.set(
+    key,
+    previous.then(() => gate).catch(() => gate),
+  );
+
+  await previous;
+
+  try {
+    return await operation();
+  } finally {
+    release();
+    const current = workflowWriteLocks.get(key);
+    if (current === gate || current === previous) {
+      workflowWriteLocks.delete(key);
+    }
+  }
 }

@@ -5,6 +5,8 @@ Agrupa las tools del arnés por dominio y riesgo.
 ## workflow
 
 - `harness_status`
+- `harness_loop_status`
+- `harness_loop_event`
 - `harness_update`
 - `harness_add`
 - `harness_log`
@@ -36,6 +38,8 @@ Agrupa las tools del arnés por dominio y riesgo.
 
 ## resources / diagnostics
 
+- `harness://health`
+- `harness://loop/active`
 - `doctor`
 - `help`
 - `tui` (estado, policy y métricas locales)
@@ -43,9 +47,9 @@ Agrupa las tools del arnés por dominio y riesgo.
 ## Risk classes v1
 
 - `R0 read-only`
-  - ejemplo: `read_file`, `list_files`, `search_repo`, `harness_status`, `mem_context`
+  - ejemplo: `read_file`, `list_files`, `search_repo`, `harness_status`, `harness_loop_status`, `mem_context`
 - `R1 local structured mutation`
-  - ejemplo: `progress_*`, `history_append`, `harness_add`, `harness_update`, `mem_save`
+  - ejemplo: `progress_*`, `history_append`, `harness_add`, `harness_update`, `harness_loop_event`, `mem_save`
 - `R2 local content mutation`
   - ejemplo: `write_file`, `inbox_consume`
 - `R3 command execution / external side effect`

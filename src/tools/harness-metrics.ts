@@ -16,7 +16,7 @@ export function registerHarnessMetricsTool(
     {
       title: "Harness Metrics",
       description:
-        "Current session metrics, including estimated local context tokens and permission policy summary.",
+        "Current session metrics, including estimated local context tokens, response output measurements and permission policy summary.",
       inputSchema: {},
     },
     async () => {
@@ -28,7 +28,7 @@ export function registerHarnessMetricsTool(
         const result = {
           metrics,
           permission_policy: summarizePermissionPolicy(config.permissionPolicy),
-          note: "estimated_local_tokens is a local approximation from bytes read/returned; it is not billed provider usage.",
+          note: "estimated_local_tokens is a local approximation from bytes read and bytes returned by measured surfaces; it is not billed provider usage.",
         };
 
         await logger.log("tool_call_finished", {

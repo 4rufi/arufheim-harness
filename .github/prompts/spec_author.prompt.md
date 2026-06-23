@@ -11,7 +11,7 @@ tools:
   - mcp_arufheim-harness_mem_context
 ---
 
-<!-- harness-agents-v4 -->
+<!-- harness-agents-v7 -->
 
 # Agente Spec Author
 

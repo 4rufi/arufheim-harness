@@ -71,23 +71,44 @@ export function runHelp(): void {
     `\n${c(P.mauve, b("arufheim-harness"))} ${dim("— MCP server + workflow tracking")}`,
   );
 
+  // ── Happy path ────────────────────────────────────────────────────────────
+  lines.push(heading("Ruta recomendada"));
+  lines.push(cmd("npm install -g", "arufheim-harness@latest", "instala o actualiza el CLI global"));
+  lines.push(cmd("setup", "--global-runtime", "siembra o repara el runtime global gestionado"));
+  lines.push(cmd("cd", "/ruta/al/repo", "entra al proyecto que quieres preparar"));
+  lines.push(cmd("setup", "--repo-path .", "configura el repo en layout thin por defecto"));
+  lines.push(cmd("verify", "--repo-path .", "confirma que el repo quedó listo"));
+  lines.push(note("abre o recarga Codex/VS Code/Claude Code/OpenCode y llama `harness_status(mode: \"brief_minimal\")`"));
+  lines.push(note("si `repo_path` coincide, puedes trabajar; clientes `missing` no bloquean si no los usas"));
+  lines.push("");
+  lines.push(note("Actualizar repo viejo: `setup --repo-path . --update` -> `migrate --repo-path . --to thin` -> `repair --repo-path .` -> `verify --repo-path .`"));
+  lines.push(note("Global clients son opcionales; el camino preferido es repo-scoped con `setup --repo-path .`"));
+
   // ── CLI commands ───────────────────────────────────────────────────────────
   lines.push(heading("CLI"));
   lines.push(
     cmd(
       "setup",
-      "[--repo-path <ruta>] [--global] [--update] [--clients <lista>] [--force-managed-global]",
-      "camino recomendado: reconcilia scaffold, bindings y valida health",
+      "[--repo-path <ruta>] [--global] [--global-runtime] [--layout thin|full] [--update] [--clients <lista>] [--force-managed-global]",
+      "camino recomendado: thin por defecto en repos consumidores; reconcilia scaffold, bindings y valida health",
+    ),
+  );
+  lines.push(
+    cmd(
+      "migrate",
+      "--to thin [--repo-path <ruta>] [--dry-run] [--json]",
+      "migra un repo existente al layout thin de forma explícita y segura",
     ),
   );
   lines.push(
     cmd(
       "repair",
-      "[--repo-path <ruta>] [--global] [--clients <lista>] [--force-managed-global]",
+      "[--repo-path <ruta>] [--global] [--global-runtime] [--clients <lista>] [--force-managed-global]",
       "autorepara assets/config gestionados por el arnés",
     ),
   );
   lines.push(cmd("doctor", "[--repo-path <ruta>] [--json]", "inspecciona health y propone fixes"));
+  lines.push(cmd("verify", "[--repo-path <ruta>] [--json]", "gate recomendado para repos consumidores"));
   lines.push(
     cmd(
       "status",
@@ -105,22 +126,12 @@ export function runHelp(): void {
   lines.push(
     cmd("init", "", "primitive compatible: inicializa workflow base + clientes"),
   );
-  lines.push(note("Codex usa `CODEX.md` y `.codex/config.toml`; el binding repo-scoped es la ruta preferente"));
-  lines.push(note("setup instala el workflow completo actual; --clients filtra integraciones, no el core del arnés"));
-  lines.push(note("setup --update fuerza reconciliación de assets/config gestionados; release gate automático: npm run release:check"));
-  lines.push(note("si el frontend no expuso `harness_status`, usa `arufheim-harness status --brief-minimal --json` como fallback operativo más barato"));
-  lines.push(note("si quieres estimar el costo local del startup o triage, usa `arufheim-harness simulate --flow <flujo> --json`"));
-  lines.push(note("si la feature ya está `in_progress`, usa `harness_loop_status` para fase, intento, budget y route-back antes de abrir más contexto"));
-  lines.push(note("usa `--brief` si además necesitas activation/client_readiness en el snapshot CLI"));
-  lines.push(note("doctor, status full y status --brief exponen `client_readiness`: verified · configured_needs_activation · invalid_manual_fix_required"));
-  lines.push(note("setup/repair --global fallan cerrado ante configs globales inválidas por defecto"));
-  lines.push(note("si quieres backup + regeneración controlada del archivo gestionado, usa --force-managed-global"));
-  lines.push(note("bindings nuevos incluyen `--client`; setup/repair dejan verificados los bindings determinísticos"));
-  lines.push(note("setup/repair --global con `--repo-path` o cwd harness detectable dejan también `.mcp.json` / `.codex/config.toml` repo-scoped cuando aplica"));
-  lines.push(note("solo los bindings globales `assumed` con `--repo-path .` o similares esperan el primer arranque real del frontend"));
-  lines.push(note("publish gate manual: completa `release-readiness.json` y corre `npm run release:publish-check`"));
-  lines.push(note("checklist manual de release: `manual-release-checklist.md`"));
-  lines.push(note("CI recomendada: typecheck + build + smoke + release:check con HARNESS_RELEASE_ALLOW_DIRTY=1"));
+  lines.push(cmd("docs", "<list|show <topic>>", "muestra docs compartidas desde el runtime del harness"));
+  lines.push(note("thin es el default recomendado; usa `setup --layout full` solo si quieres materializar docs/prompts largos"));
+  lines.push(note("si el frontend no expuso `harness_status`, usa `status --brief-minimal --json`"));
+  lines.push(note("setup/repair --global fallan cerrado ante configs inválidas; `--force-managed-global` crea backup y regenera la entrada gestionada"));
+  lines.push(note("release: `npm run release:check` -> actualiza release-readiness.json -> `npm run release:publish-check`"));
+  lines.push(note("más detalle: README.md, `docs list`, `docs show <topic>` y manual-release-checklist.md"));
   lines.push(cmd("init", "--claude", "workflow base + archivos Claude"));
   lines.push(cmd("init", "--codex", "workflow base + binding repo-scoped de Codex"));
   lines.push(cmd("init", "--copilot", "workflow base + archivos Copilot"));
@@ -131,6 +142,7 @@ export function runHelp(): void {
   lines.push(
     cmd("init", "--update", "aplica secciones faltantes sin sobreescribir"),
   );
+  lines.push(cmd("init", "--layout thin|full", "elige el scaffold local al usar el primitive"));
   lines.push(
     cmd(
       "agent",
@@ -146,6 +158,7 @@ export function runHelp(): void {
     ),
   );
   lines.push(cmd("tui", "", "dashboard visual con estado, policy y métricas"));
+  lines.push(cmd("version", "| --version | -v", "muestra la versión del CLI"));
   lines.push(cmd("help", "", "muestra esta ayuda"));
   lines.push("");
   lines.push(
@@ -157,6 +170,7 @@ export function runHelp(): void {
       "config set arrays    usa JSON: [\"pnpm test\",\"npm test\"] · [\"R1\",\"R2\"]",
     ),
   );
+  lines.push(note("testing.fastCommand/testing.integrationCommand fijan la capa rápida e integración por repo"));
 
   // ── MCP tools: repo ────────────────────────────────────────────────────────
   lines.push(heading("Herramientas MCP — Exploración"));
@@ -284,6 +298,8 @@ export function runHelp(): void {
   );
   lines.push(resource("harness://health", "snapshot de health compartido por doctor/status/tui"));
   lines.push(resource("harness://loop/active", "loop activo de la feature viva"));
+  lines.push(resource("harness://docs/index", "índice de docs compartidas del runtime"));
+  lines.push(resource("harness://docs/<topic>", "doc compartida individual por tópico"));
   lines.push(resource("harness://logs/main", "últimas líneas del log JSONL"));
 
   lines.push("");

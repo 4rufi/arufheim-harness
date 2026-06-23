@@ -1,21 +1,21 @@
 {
-  "version": "1.2.0",
+  "version": "1.4.1",
   "manual_checks": [
     {
       "id": "repo_base",
       "label": "Repo base",
       "required": true,
       "checked": true,
-      "verified_at": "2026-06-18T03:08:00Z",
-      "notes": "Validado para 1.2.0 con `./init.sh`, `node dist/index.js simulate --repo-path . --flow startup --json`, `node dist/index.js simulate --repo-path . --flow loop,triage`, `HARNESS_RELEASE_ALLOW_DIRTY=1 npm run release:check` y `npm run release:publish-check -- --skip-automated`."
+      "verified_at": "2026-06-23T16:46:39Z",
+      "notes": "Revalidado para 1.4.0 con `./init.sh` y `npm run release:check -- --allow-dirty`. El gate empaquetado volvió a instalar el tarball real en repo temporal, sembró runtime global, validó `scaffold_layout=thin`, `runtime_artifact.kind=global_bundle`, `runtime_source.kind=package_install` y confirmó que `status`, `doctor` y `docs show verification` siguen operativos aun después de retirar el paquete sembrador."
     },
     {
       "id": "vscode",
       "label": "VS Code",
       "required": true,
-      "checked": true,
-      "verified_at": "2026-06-16T02:24:46Z",
-      "notes": "El estado actual del repo reporta `client_readiness.vscode.state=verified` y `client_verification.vscode.verified_at=2026-06-07T05:06:39.037Z` con binding repo-scoped vigente."
+      "checked": false,
+      "verified_at": null,
+      "notes": "Revalidar para 1.4.1. Evidencia histórica: `client_readiness.vscode.state=verified` y binding repo-scoped vigente."
     },
     {
       "id": "claude_desktop",
@@ -29,9 +29,9 @@
       "id": "claude_code_repo_scoped",
       "label": "Claude Code repo-scoped/híbrido",
       "required": true,
-      "checked": true,
-      "verified_at": "2026-06-16T02:24:46Z",
-      "notes": "El estado actual del repo reporta `client_readiness.claude_code.state=verified` y `client_verification.claude_code.verified_at=2026-06-07T05:06:39.037Z` con `.mcp.json` repo-scoped alineado."
+      "checked": false,
+      "verified_at": null,
+      "notes": "Revalidar para 1.4.1. Evidencia histórica: `.mcp.json` repo-scoped alineado y `client_readiness.claude_code.state=verified`."
     },
     {
       "id": "claude_code_global_assumed",
@@ -45,9 +45,9 @@
       "id": "codex_repo_scoped",
       "label": "Codex repo-scoped/híbrido",
       "required": true,
-      "checked": true,
-      "verified_at": "2026-06-16T02:24:46Z",
-      "notes": "El estado actual del repo reporta `client_readiness.codex.state=verified` y `client_verification.codex.verified_at=2026-06-15T02:47:47.666Z` con `.codex/config.toml` repo-scoped alineado."
+      "checked": false,
+      "verified_at": null,
+      "notes": "Revalidar para 1.4.1. Evidencia histórica: `.codex/config.toml` repo-scoped alineado y `client_readiness.codex.state=verified`."
     },
     {
       "id": "codex_global_assumed",
@@ -61,17 +61,17 @@
       "id": "opencode",
       "label": "OpenCode",
       "required": true,
-      "checked": true,
-      "verified_at": "2026-06-16T02:24:46Z",
-      "notes": "El estado actual del repo reporta `client_readiness.opencode.state=verified` y `client_verification.opencode.verified_at=2026-06-07T05:06:39.038Z` con `.opencode/opencode.json` repo-scoped vigente."
+      "checked": false,
+      "verified_at": null,
+      "notes": "Revalidar para 1.4.1. Evidencia histórica: `.opencode/opencode.json` repo-scoped vigente y `client_readiness.opencode.state=verified`."
     },
     {
       "id": "broken_global_recovery",
       "label": "Escenarios rotos / recovery global",
       "required": true,
       "checked": true,
-      "verified_at": "2026-06-16T02:24:46Z",
-      "notes": "Reproducido con HOME temporal: `setup --global --clients claude,copilot` y `repair --global --clients codex` fallan cerrado sin sobrescribir archivos inválidos; con `--force-managed-global` crean backup sidecar y regeneran config válida para Claude Desktop y Codex."
+      "verified_at": "2026-06-23T16:58:24Z",
+      "notes": "Revalidado para 1.4.0 con HOME temporal y repo temporal separado. `setup --global --clients claude,copilot` falló cerrado sobre Claude Desktop inválido sin sobrescribir el archivo roto; `repair --global --clients codex` falló cerrado sobre TOML inválido. Con `--force-managed-global`, ambos paths crearon backup `.arufheim-harness.invalid-backup.*` y regeneraron la config gestionada válida."
     }
   ]
 }

@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-22 — Fixes de migración thin y scope de health
+
+- **Agente:** Codex
+- **Plan:** corregir la migración real `full -> thin` y evitar que el health repo-local se degrade por globals fuera de `scaffold.localClients`.
+- **Cambios:** `src/migrate.ts` ahora limpia directorios gestionados vacíos sin romper la poda conservadora; `src/health.ts` deja de inspeccionar globals fuera del scope esperado; `scripts/smoke-stdio.mjs` ganó cobertura para migración real, `codex-only` con globals válidos fuera de scope y el caso correcto de `assumed global binding`.
+- **Verificación:** `./scripts/pnpmw.sh typecheck`, `./scripts/pnpmw.sh test`, `./scripts/pnpmw.sh build`, `./scripts/pnpmw.sh smoke` y `./init.sh` con PATH explícito.
+- **Cierre:** feature archivada como `done`; quedaron reparados los dos hallazgos de compatibilidad detectados en la revisión completa.
+
+## 2026-06-22 — Thin default y migración explícita
+
+- **Agente:** Codex
+- **Plan:** introducir `thin` como layout por defecto, separar migración de layout en `migrate --to thin`, servir docs compartidas desde runtime y mantener `verify` como gate del repo consumidor.
+- **Cambios:** se añadieron `src/scaffold-layout.ts`, `src/migrate.ts`, `src/verify.ts`, `src/shared-docs.ts` y `src/docs-command.ts`; `setup/init/repair/doctor/status/health/resources/help` ahora entienden `scaffold_layout`; el scaffold repo-local por defecto quedó en `thin`; la detección de repos válidos dejó de aceptar `feature_list.json` suelto; `README.md` y `CHANGELOG.md` quedaron alineados.
+- **Verificación:** `./scripts/pnpmw.sh test`, `./scripts/pnpmw.sh build`, `./scripts/pnpmw.sh smoke`, `node dist/index.js docs list`, `node dist/index.js migrate --to thin --repo-path <tmp-repo> --dry-run --json`, `node dist/index.js verify --repo-path . --json` y `./init.sh` con PATH explícito.
+- **Cierre:** feature archivada como `done`; el repo del harness sigue en layout `full`, pero los repos nuevos pasan a `thin` salvo que pidan `--layout full`.
+
 ## 2026-05-18 — Spec inicial de repo_resources
 
 - **Agente:** leader -> spec_author
@@ -420,3 +436,67 @@
 - **Cambios:** `package.json` y `release-readiness.json` quedaron en `1.2.0`; `CHANGELOG.md` movió los cambios de `Unreleased` a `## 1.2.0`; se resembró el loop de la feature de release para no romper `doctor`; el gate `release:check` pasó contra el tarball real instalado en un repo temporal y `release:publish-check -- --skip-automated` quedó verde.
 - **Verificación:** `node dist/index.js repair --repo-path .`, `HARNESS_RELEASE_ALLOW_DIRTY=1 npm run release:check -- --allow-dirty`, `npm run release:publish-check -- --skip-automated` y `./init.sh`.
 - **Cierre:** feature archivada; el repo queda listo para publicar `1.2.0`.
+
+## 2026-06-22 — TDD parcial por capas y headroom interno fase 1
+
+- **Agente:** Codex
+- **Plan:** formalizar TDD parcial por capas sin tocar surfaces públicas nuevas, añadir una suite rápida real, autodetección de testing para scaffold y un `head_<feature>.md` interno consumido por `agent` y prompts.
+- **Cambios:** se añadió `Vitest` como suite rápida oficial del repo; `package.json`, `init.sh`, `scripts/release-check.sh` y `scripts/pnpmw.sh` quedaron alineados con el gate `typecheck -> test -> build -> smoke`; `src/testing.ts` introduce `testing.fastCommand` / `testing.integrationCommand`, autodetección y merge conservador de `allowedCommands`; `src/headroom.ts` genera/refresca `.harness/progress/head_<feature>.md` y se conectó a `agent`, `setup`, `repair`, `harness_update` y `harness_loop_event`; `README.md`, `CHECKPOINTS.md`, `.harness-docs/*`, `AGENTS.md`, `src/help.ts`, prompts/agentes gestionados y `src/init.ts` quedaron alineados con la policy TDD parcial y el nuevo nivel `head`; `scripts/smoke-stdio.mjs` ahora cubre autodetección, guidance de testing, fallback JS/TS vs no-JS y refresh de `head_<feature>.md`.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs`, `node dist/index.js setup --repo-path . --update` y `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./init.sh`.
+- **Cierre:** feature archivada; el harness ya expone TDD parcial por capas en scaffold y docs, autodetecta la capa rápida del repo y usa `head_<feature>.md` como headroom interno sin abrir surfaces públicas nuevas.
+
+## 2026-06-22 — Reducir ruido de preflight de testing
+
+- **Agente:** Codex
+- **Plan:** bajar el ruido operacional del harness para que `pnpm`/`Vitest` se traten como feedback contextual del repo y no como chequeo previo universal antes de editar.
+- **Cambios:** `src/testing.ts` ahora presenta `testing.fastCommand` e `integrationCommand` como comandos reales a usar cuando aplican; `src/headroom.ts` cambió la siguiente acción para evitar preflights de tooling; `src/init.ts` subió el marker gestionado a `v7` y actualizó prompts/templates/checkpoints para prohibir `pnpm --version` / `vitest --version` salvo fallo real o trabajo explícito sobre tooling/testing; `README.md`, `.harness-docs/verification.md` y `CHECKPOINTS.md` quedaron alineados; `setup --update` regeneró `.github/prompts/implementer.prompt.md` y `.claude/agents/implementer.md`; `scripts/smoke-stdio.mjs` y `tests/testing.test.ts` fijan la regresión.
+- **Verificación:** `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/pnpmw.sh test`, `./scripts/pnpmw.sh build`, `node dist/index.js setup --repo-path . --update`, `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/pnpmw.sh smoke` y `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./init.sh`.
+- **Cierre:** feature archivada; el harness mantiene TDD parcial por capas, pero deja de inducir preflights ruidosos de `pnpm`/`Vitest` en prompts y headroom.
+
+## 2026-06-22 — Quitar fallback a npx en init.sh de repos consumidores
+
+- **Agente:** Codex
+- **Plan:** eliminar el fallback implícito a `npx` del `init.sh` scaffolded para repos consumidores, dejar un error offline-first accionable y alinear smoke/docs/help con el contrato nuevo.
+- **Cambios:** `src/init.ts` quitó `npx --yes arufheim-harness ...` del `init.sh` scaffolded y dejó una salida cerrada que exige `ARUFHEIM_HARNESS_ENTRY`, `arufheim-harness` en `PATH` o `verify`; `scripts/smoke-stdio.mjs` ahora fija que el scaffold `full` ya no dependa de `npx`; `README.md`, `src/help.ts`, `.harness-docs/verification.md` y `CHANGELOG.md` quedaron alineados con el contrato offline-first del repo consumidor.
+- **Verificación:** `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/pnpmw.sh typecheck`, `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/pnpmw.sh test`, `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/pnpmw.sh build`, `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/pnpmw.sh smoke` y `COREPACK_HOME=/private/tmp/corepack-home PATH=/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./init.sh`.
+- **Cierre:** feature archivada; el repo consumidor en layout `full` ya no intenta descargar el harness al cerrar o verificar y el camino correcto quedó explícito.
+
+## 2026-06-22 — Preparar release 1.3.0
+
+- **Agente:** Codex
+- **Plan:** correr la pasada de release real sobre el estado actual, validar el paquete en un repo limpio con `setup --layout full` y alinear versión/changelog/readiness para dejar el publish gate listo.
+- **Cambios:** se añadió el loop de la feature de release para no romper `doctor`; `package.json`, `release-readiness.json` y `CHANGELOG.md` quedaron alineados en `1.3.0`; `release-readiness.json` refrescó `repo_base` con evidencia nueva del tarball actual; `CHANGELOG.md` vació `Unreleased` y movió los cambios acumulados a `## 1.3.0`.
+- **Verificación:** `PATH=/private/tmp/harness-release-bin:/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH ./scripts/release-check.sh --allow-dirty`, repo limpio desde tarball actual con `setup --layout full`, `./init.sh` usando binario local en `PATH`, `doctor --json` en `ok`, y `/Users/andyau/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/release-publish-check.mjs --skip-automated`.
+- **Cierre:** feature archivada; el release contract de `1.3.0` quedó alineado. Solo falta el paso operativo normal de dejar el worktree limpio antes de publicar desde este repo.
+
+## 2026-06-23 — Runtime global gestionado y bindings reproducibles
+
+- **Agente:** Codex
+- **Plan:** reemplazar la dependencia de `npx`/PATH ambiguo en bindings MCP por un runtime global gestionado y un launcher repo-portable, sin convertir `arufheim-harness` en dependencia del proyecto.
+- **Cambios:** se añadió `src/runtime.ts` para instalar/verificar el runtime global gestionado, persistir `runtime.json` y exponer un launcher repo-portable en `.harness/runtime/launch-global-runtime.mjs`; `src/init.ts`, `src/setup.ts`, `src/repair.ts`, `src/config.ts` y `src/index.ts` migraron los bindings globales al shim absoluto y los repo-scoped a `node + launcher`, además de corregir `setup --help`; `src/health.ts`, `src/status.ts`, `src/doctor.ts` y `src/verify.ts` exponen `runtime_status` y tratan `npx` como drift legacy reparable; `README.md`, `manual-release-checklist.md`, `src/help.ts`, `CHANGELOG.md` y `scripts/smoke-stdio.mjs` quedaron alineados con el contrato nuevo y con seed aislado del runtime en smoke.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** feature archivada; el harness ya no depende de `npx` para sus bindings gestionados y el repo consumidor sigue portable sin dependencia local del paquete.
+
+## 2026-06-23 — Hardening del boot real del runtime gestionado
+
+- **Agente:** Codex
+- **Plan:** cerrar los hallazgos del review del runtime gestionado: boot roto fuera del repo, riesgo de reinstall autodestructivo, drift en la resolución del global root y smoke insuficiente.
+- **Cambios:** `src/runtime.ts` dejó de copiar `dist/` al root global y ahora escribe metadata + shim apuntando al entrypoint real instalado del paquete; el launcher repo-scoped usa `os.homedir()` y la misma raíz global canónica exportada desde `src/config.ts`; `evaluateManagedGlobalRuntimeStatus()` marca como `stale` los runtimes legacy que aún apunten a `runtime/dist`; se añadió `tests/runtime.test.ts`; `scripts/smoke-stdio.mjs` ahora ejecuta el shim global y el launcher repo-scoped reales con `status --brief-minimal --json`; `README.md` y `CHANGELOG.md` quedaron alineados con el contrato nuevo.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs` y `./init.sh`.
+- **Cierre:** feature archivada; el runtime gestionado ya arranca de verdad fuera del repo y el smoke protege ese contrato end-to-end.
+
+## 2026-06-23 — Procedencia visible del runtime y gate real de release
+
+- **Agente:** Codex
+- **Plan:** hacer visible si el runtime gestionado viene de un package install o de un workspace/link de desarrollo, degradar ese matiz con warning explícito y mover la garantía fuerte al gate de release sobre el tarball real.
+- **Cambios:** `src/runtime.ts` ahora deriva y persiste `runtime_source`; `src/health.ts` propaga esa procedencia y degrada con warning `workspace_dev` / `linked_dev`; `src/doctor.ts`, `src/verify.ts` y `src/status.ts` muestran `source=<kind>` en la línea de runtime; `tests/runtime.test.ts` cubre `workspace_dev`, `package_install` y `linked_dev`; `scripts/smoke-stdio.mjs` acepta el warning de desarrollo en repos sembrados desde este workspace; `scripts/release-check.sh` usa un `XDG_CONFIG_HOME` temporal, siembra el runtime desde el tarball instalado, ejecuta el shim real y exige `runtime_status.runtime_source.kind=package_install`; `README.md`, `manual-release-checklist.md`, `src/help.ts` y `CHANGELOG.md` quedaron alineados.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc -p tsconfig.json`, `node scripts/smoke-stdio.mjs`, `HARNESS_RELEASE_ALLOW_DIRTY=1 npm run release:check -- --allow-dirty` y `./init.sh`.
+- **Cierre:** feature archivada; el matiz de runtime de desarrollo ya es visible y la release valida el caso `package_install` real antes de publicar.
+
+## 2026-06-23 — Bundle global autocontenido para el runtime gestionado
+
+- **Agente:** Codex
+- **Plan:** convertir el runtime global en un artefacto JS autocontenido sembrado en el root global, separar `runtime_artifact` de `runtime_source`, embedir docs compartidas y endurecer `release:check` para validar el shim sin el paquete sembrador.
+- **Cambios:** se añadió `scripts/generate-shared-docs-registry.mjs` para generar una registry embebida de docs compartidas y `scripts/build-runtime-bundle.mjs` para producir `dist/runtime-bundle.cjs` con `esbuild`; `src/shared-docs.ts` dejó de depender de `packageRoot()`; `src/runtime.ts` ahora siembra `runtime/arufheim-harness.cjs`, escribe metadata v2 con `artifact_kind/artifact_path` y `seed_*`, mantiene compatibilidad legacy v1 como `stale` y usa fallback de bundle solo para workspace dev; `src/health.ts`, `src/doctor.ts`, `src/status.ts`, `src/verify.ts`, `src/help.ts`, `README.md`, `manual-release-checklist.md` y `CHANGELOG.md` quedaron alineados con `runtime_artifact + runtime_source`; `tests/runtime.test.ts`, `tests/contracts.test.ts`, `scripts/smoke-stdio.mjs` y `scripts/release-check.sh` ahora validan el bundle global, `docs list/show` desde el runtime gestionado y el caso de release donde se retira el paquete sembrador.
+- **Verificación:** `./node_modules/.bin/tsc -p tsconfig.json --noEmit`, `node scripts/generate-shared-docs-registry.mjs && ./node_modules/.bin/vitest run`, `node scripts/generate-shared-docs-registry.mjs && ./node_modules/.bin/tsc -p tsconfig.json && node scripts/build-runtime-bundle.mjs`, `node scripts/smoke-stdio.mjs`, `npm run release:check -- --allow-dirty` y `./init.sh`.
+- **Cierre:** feature archivada; el runtime gestionado ya es autocontenido a nivel de artefacto global y la release prueba explícitamente que el shim sigue vivo aun sin el paquete sembrador.

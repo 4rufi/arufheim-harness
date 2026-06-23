@@ -6,7 +6,8 @@
     "npm test",
     "yarn test",
     "ls",
-    "pwd"
+    "pwd",
+    "pnpm test:unit"
   ],
   "ignored": [
     "node_modules/**",
@@ -76,6 +77,11 @@
       "copilot",
       "opencode",
       "codex"
-    ]
+    ],
+    "layout": "full"
+  },
+  "testing": {
+    "fastCommand": "pnpm test:unit",
+    "integrationCommand": "pnpm verify"
   }
 }

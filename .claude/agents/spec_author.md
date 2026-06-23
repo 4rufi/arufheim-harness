@@ -4,7 +4,7 @@ description: Redacta specs Kiro-style (requirements/design/tasks) para una featu
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v4 -->
+<!-- harness-agents-v7 -->
 
 # Agente Spec Author
 

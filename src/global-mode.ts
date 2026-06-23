@@ -1,4 +1,3 @@
-import { access } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -10,65 +9,11 @@ import {
   type GlobalClientId,
   type InitTarget,
 } from "./init.js";
+import { isDetectableHarnessRepo } from "./scaffold-layout.js";
 
 export interface GlobalRepoContext {
   repoPath: string;
   source: "explicit" | "detected";
-}
-
-const HIDDEN_HARNESS_MARKERS = [
-  "harness.config.json",
-  ".harness/feature_list.json",
-  ".harness/feature_history.json",
-  ".harness/progress/current.md",
-  ".harness/progress/history.md",
-  ".harness/progress/README.md",
-  ".harness-docs/specs.md",
-  ".harness-docs/verification.md",
-  "AGENTS.md",
-] as const;
-
-const ROOT_LEGACY_REQUIRED_MARKERS = ["feature_list.json"] as const;
-const ROOT_LEGACY_COMPANION_MARKERS = [
-  "harness.config.json",
-  "feature_history.json",
-  "progress/current.md",
-  "progress/history.md",
-  "progress/README.md",
-  "docs/specs.md",
-  "docs/verification.md",
-  "AGENTS.md",
-] as const;
-
-async function pathExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function isDetectableHarnessRepo(repoPath: string): Promise<boolean> {
-  for (const marker of HIDDEN_HARNESS_MARKERS) {
-    if (await pathExists(path.join(repoPath, marker))) {
-      return true;
-    }
-  }
-
-  for (const marker of ROOT_LEGACY_REQUIRED_MARKERS) {
-    if (!(await pathExists(path.join(repoPath, marker)))) {
-      return false;
-    }
-  }
-
-  for (const marker of ROOT_LEGACY_COMPANION_MARKERS) {
-    if (await pathExists(path.join(repoPath, marker))) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 export async function resolveGlobalRepoContext(

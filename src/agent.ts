@@ -5,6 +5,7 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import type { ResolvedharnessConfig } from "./config.js";
+import { refreshActiveHeadSummary } from "./headroom.js";
 import { readLoopStatus, type LoopSummary } from "./loop.js";
 import { resolveExistingWithinRepo } from "./safety.js";
 import {
@@ -80,6 +81,8 @@ interface WorkflowBrief {
   loopLastError: string | null;
   loopLastStrategy: string | null;
   loopNoProgressStreak: number;
+  headSummary: string | null;
+  headPath: string | null;
 }
 
 interface RoutingDecision {
@@ -365,6 +368,9 @@ async function readWorkflowBrief(
     const loopStatus = activeFeature
       ? await readLoopStatus(repoPath, activeFeature.id)
       : { loop: undefined, loop_summary: null };
+    const headSummary = activeFeature
+      ? await refreshActiveHeadSummary(repoPath)
+      : null;
 
     return {
       activeFeature: activeFeature
@@ -379,6 +385,8 @@ async function readWorkflowBrief(
       loopLastError: loopStatus.loop?.last_error_signature ?? null,
       loopLastStrategy: loopStatus.loop?.last_strategy_delta ?? null,
       loopNoProgressStreak: loopStatus.loop?.no_progress_streak ?? 0,
+      headSummary: headSummary?.content.trim() ?? null,
+      headPath: headSummary?.path ?? null,
     };
   } catch {
     return null;
@@ -402,6 +410,8 @@ function formatWorkflowBrief(brief: WorkflowBrief): string {
       : "",
     brief.loopLastError ? `- last_error: ${brief.loopLastError}` : "",
     brief.loopLastStrategy ? `- last_strategy_delta: ${brief.loopLastStrategy}` : "",
+    brief.headPath ? `- head_path: ${brief.headPath}` : "",
+    brief.headSummary ? `\nHead summary:\n${brief.headSummary}` : "",
   ].join("\n");
 }
 

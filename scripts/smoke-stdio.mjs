@@ -24,6 +24,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const configPath = path.join(repoRoot, "harness.config.json");
 const distPath = path.join(repoRoot, "dist", "index.js");
+const smokeXdgHome = await mkdtemp(path.join(os.tmpdir(), "harness-smoke-xdg-"));
+process.env.XDG_CONFIG_HOME = smokeXdgHome;
+const smokeManagedShimPath = path.join(
+  smokeXdgHome,
+  "arufheim-harness",
+  "bin",
+  process.platform === "win32" ? "arufheim-harness.cmd" : "arufheim-harness",
+);
 const harnessVersion = JSON.parse(
   await readFile(path.join(repoRoot, "package.json"), "utf8"),
 ).version;
@@ -59,6 +67,24 @@ const smokeTimeout = setTimeout(() => {
   fail("Smoke timeout.");
 }, 30_000);
 
+const seededManagedRuntime = spawnSync(
+  process.execPath,
+  [distPath, "setup", "--global-runtime"],
+  {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      XDG_CONFIG_HOME: smokeXdgHome,
+    },
+  },
+);
+if (seededManagedRuntime.status !== 0) {
+  throw new Error(
+    `Failed to seed managed runtime for smoke.\nstdout:\n${seededManagedRuntime.stdout}\nstderr:\n${seededManagedRuntime.stderr}`,
+  );
+}
+
 try {
   await smokeDefaultRepo();
   await smokeBriefMinimalAndResponseMetrics();
@@ -73,9 +99,11 @@ try {
   await smokeLegacyRootCompatibility();
   await smokeWorkflowHiddenLayout();
   await smokeSetupAndRepair();
+  await smokeTestingPolicyAndHeadroom();
   await smokeRelativeRepoPathStatusFallback();
   await smokeStatusBriefRefreshesStaleHealth();
   await smokeCodexOnlySetupContract();
+  await smokeThinMigrationExecution();
   await smokeRepoScopedManagedUpdate();
   await smokeGlobalPreferredRepoScopedBindings();
   await smokeAssumedGlobalBindings();
@@ -85,11 +113,13 @@ try {
   await smokeExistingAgentsUpgrade();
   await smokeConfigCommandMutations();
   await smokeReleasePublishGate();
+  await smokeManagedRuntimeSharedDocs();
   smokeCliSurfaces();
   smokeJsoncParser();
   console.log("Smoke OK");
 } finally {
   clearTimeout(smokeTimeout);
+  await rm(smokeXdgHome, { recursive: true, force: true });
 }
 
 async function smokeDefaultRepo() {
@@ -1488,10 +1518,11 @@ async function smokeInitScaffold() {
 
   try {
     await mkdir(repoPath, { recursive: true });
+    const repoRealPath = await realpath(repoPath);
 
     const init = spawnSync(
       process.execPath,
-      [distPath, "init", "--repo-path", repoPath],
+      [distPath, "init", "--repo-path", repoPath, "--layout", "full"],
       {
         cwd: repoPath,
         encoding: "utf8",
@@ -1500,6 +1531,63 @@ async function smokeInitScaffold() {
     assert(
       init.status === 0,
       `init command failed.\nstdout:\n${init.stdout}\nstderr:\n${init.stderr}`,
+    );
+
+    const shimStatus = spawnSync(
+      smokeManagedShimPath,
+      ["status", "--repo-path", repoPath, "--brief-minimal", "--json"],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          XDG_CONFIG_HOME: smokeXdgHome,
+        },
+      },
+    );
+    assert(
+      shimStatus.status === 0,
+      `Managed global shim did not boot outside the repo.\nstdout:\n${shimStatus.stdout}\nstderr:\n${shimStatus.stderr}`,
+    );
+    const shimSnapshot = JSON.parse(shimStatus.stdout);
+    assert(
+      (shimSnapshot.repo_path === repoPath ||
+        shimSnapshot.repo_path === repoRealPath) &&
+        shimSnapshot.runtime_status?.state === "ok" &&
+        shimSnapshot.runtime_status?.runtime_artifact?.kind === "global_bundle",
+      `Managed global shim returned an unexpected status payload.\n${shimStatus.stdout}`,
+    );
+
+    const launcherStatus = spawnSync(
+      process.execPath,
+      [
+        path.join(repoPath, ".harness", "runtime", "launch-global-runtime.mjs"),
+        "status",
+        "--repo-path",
+        ".",
+        "--brief-minimal",
+        "--json",
+      ],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          XDG_CONFIG_HOME: smokeXdgHome,
+        },
+      },
+    );
+    assert(
+      launcherStatus.status === 0,
+      `Repo-scoped launcher did not boot against the managed runtime.\nstdout:\n${launcherStatus.stdout}\nstderr:\n${launcherStatus.stderr}`,
+    );
+    const launcherSnapshot = JSON.parse(launcherStatus.stdout);
+    assert(
+      (launcherSnapshot.repo_path === repoPath ||
+        launcherSnapshot.repo_path === repoRealPath) &&
+        launcherSnapshot.runtime_status?.state === "ok" &&
+        launcherSnapshot.runtime_status?.runtime_artifact?.kind === "global_bundle",
+      `Repo-scoped launcher returned an unexpected status payload.\n${launcherStatus.stdout}`,
     );
 
     const requiredFiles = [
@@ -1550,6 +1638,15 @@ async function smokeInitScaffold() {
         `Scaffolded file is empty: ${relativePath}`,
       );
     }
+
+    const repoInitScript = await readFile(path.join(repoPath, "init.sh"), "utf8");
+    assert(
+      repoInitScript.includes("ARUFHEIM_HARNESS_ENTRY") &&
+        repoInitScript.includes("arufheim-harness doctor --repo-path .") &&
+        repoInitScript.includes("no intenta descargar el harness vía npx") &&
+        !repoInitScript.includes("npx --yes arufheim-harness doctor --repo-path ."),
+      `Scaffolded init.sh still depends on implicit npx fallback.\n${repoInitScript}`,
+    );
 
     const featureListRaw = await readFile(
       path.join(repoPath, ".harness", "feature_list.json"),
@@ -1714,12 +1811,81 @@ async function smokeCodexOnlySetupContract() {
 
   try {
     await mkdir(repoPath, { recursive: true });
+    const vscodeGlobalPath = globalClientConfigPath(homePath, "vscode");
     const claudeDesktopGlobalPath = globalClientConfigPath(
       homePath,
       "claude-desktop",
     );
+    const claudeCodeGlobalPath = globalClientConfigPath(homePath, "claude-code");
+    await mkdir(path.dirname(vscodeGlobalPath), { recursive: true });
     await mkdir(path.dirname(claudeDesktopGlobalPath), { recursive: true });
-    await writeFile(claudeDesktopGlobalPath, "{ invalid json\n", "utf8");
+    await mkdir(path.dirname(claudeCodeGlobalPath), { recursive: true });
+    await writeFile(
+      vscodeGlobalPath,
+      JSON.stringify(
+        {
+          servers: {
+            "arufheim-harness": {
+              command: "npx",
+              args: [
+                "arufheim-harness",
+                "--repo-path",
+                "${workspaceFolder}",
+                "--client",
+                "vscode",
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+    await writeFile(
+      claudeDesktopGlobalPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            "arufheim-harness": {
+              command: "npx",
+              args: [
+                "arufheim-harness",
+                "--repo-path",
+                ".",
+                "--client",
+                "claude-desktop",
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+    await writeFile(
+      claudeCodeGlobalPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            "arufheim-harness": {
+              command: "npx",
+              args: [
+                "arufheim-harness",
+                "--repo-path",
+                ".",
+                "--client",
+                "claude-code",
+              ],
+            },
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
     const env = {
       ...process.env,
       HOME: homePath,
@@ -1740,16 +1906,14 @@ async function smokeCodexOnlySetupContract() {
     );
     assert(
       setup.stdout.includes("setup summary") &&
-        setup.stdout.includes("health: ok") &&
+        setup.stdout.includes("health: degraded") &&
         setup.stdout.includes("Codex"),
       `codex-only setup did not emit expected summary.\n${setup.stdout}`,
     );
 
     for (const relativePath of [
       "AGENTS.md",
-      "CHECKPOINTS.md",
       "CODEX.md",
-      "init.sh",
       "harness.config.json",
       ".codex/config.toml",
       ".harness/feature_list.json",
@@ -1762,6 +1926,15 @@ async function smokeCodexOnlySetupContract() {
     }
 
     assert(
+      !(await fileExists(path.join(repoPath, "CHECKPOINTS.md"))),
+      "codex-only setup should stay thin by default and omit CHECKPOINTS.md.",
+    );
+    assert(
+      !(await fileExists(path.join(repoPath, "init.sh"))),
+      "codex-only setup should stay thin by default and omit repo-local init.sh.",
+    );
+
+    assert(
       !(await fileExists(path.join(repoPath, ".claude", "agents", "leader.md"))),
       "codex-only setup should not scaffold Claude agent files.",
     );
@@ -1772,7 +1945,7 @@ async function smokeCodexOnlySetupContract() {
     );
     assert(
       codexInstructions.includes("harness_status") &&
-        codexInstructions.includes("./init.sh") &&
+        codexInstructions.includes("arufheim-harness verify --repo-path .") &&
         codexInstructions.includes("AGENTS.md") &&
         !codexInstructions.includes(".claude/agents/leader.md"),
       `codex-only CODEX.md still points to Claude-only flow.\n${codexInstructions}`,
@@ -1782,28 +1955,20 @@ async function smokeCodexOnlySetupContract() {
       await readFile(path.join(repoPath, "harness.config.json"), "utf8"),
     );
     assert(
+      configDoc.scaffold?.layout === "thin" &&
       JSON.stringify(configDoc.scaffold?.localClients) ===
         JSON.stringify(["codex"]),
       `codex-only setup did not persist scaffold.localClients.\n${JSON.stringify(configDoc, null, 2)}`,
     );
 
-    const initStats = await stat(path.join(repoPath, "init.sh"));
-    assert(
-      (initStats.mode & 0o111) !== 0,
-      "repo-local init.sh is not executable.",
-    );
-
-    const repoInit = spawnSync("bash", ["./init.sh"], {
+    const repoVerify = spawnSync(process.execPath, [distPath, "verify", "--repo-path", repoPath], {
       cwd: repoPath,
       encoding: "utf8",
-      env: {
-        ...env,
-        ARUFHEIM_HARNESS_ENTRY: distPath,
-      },
+      env,
     });
     assert(
-      repoInit.status === 0,
-      `repo-local init.sh failed in codex-only repo.\nstdout:\n${repoInit.stdout}\nstderr:\n${repoInit.stderr}`,
+      repoVerify.status === 0,
+      `verify failed in codex-only repo.\nstdout:\n${repoVerify.stdout}\nstderr:\n${repoVerify.stderr}`,
     );
 
     const doctor = spawnSync(
@@ -1821,7 +1986,8 @@ async function smokeCodexOnlySetupContract() {
     );
     const snapshot = JSON.parse(doctor.stdout);
     assert(
-      snapshot.doctor_summary?.status === "ok" &&
+      ["ok", "degraded"].includes(snapshot.doctor_summary?.status) &&
+        snapshot.runtime_status?.runtime_source?.kind === "workspace_dev" &&
         snapshot.client_verification?.codex?.state === "verified",
       `doctor did not leave codex-only repo healthy.\n${doctor.stdout}`,
     );
@@ -1834,6 +2000,96 @@ async function smokeCodexOnlySetupContract() {
           !String(alert.code).startsWith("client.opencode."),
       ),
       `doctor still warns about omitted clients in codex-only repo.\n${doctor.stdout}`,
+    );
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function smokeThinMigrationExecution() {
+  const tempRoot = await mkdtemp(
+    path.join(os.tmpdir(), "harness-smoke-thin-migrate-"),
+  );
+  const repoPath = path.join(tempRoot, "repo");
+  const homePath = path.join(tempRoot, "home");
+
+  try {
+    await mkdir(repoPath, { recursive: true });
+    const env = {
+      ...process.env,
+      HOME: homePath,
+    };
+
+    const setup = spawnSync(
+      process.execPath,
+      [distPath, "setup", "--repo-path", repoPath, "--layout", "full"],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        env,
+      },
+    );
+    assert(
+      setup.status === 0,
+      `full setup before migration failed.\nstdout:\n${setup.stdout}\nstderr:\n${setup.stderr}`,
+    );
+
+    const migrate = spawnSync(
+      process.execPath,
+      [distPath, "migrate", "--to", "thin", "--repo-path", repoPath],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        env,
+      },
+    );
+    assert(
+      migrate.status === 0,
+      `real thin migration failed.\nstdout:\n${migrate.stdout}\nstderr:\n${migrate.stderr}`,
+    );
+    assert(
+      migrate.stdout.includes("to: thin") &&
+        migrate.stdout.includes("prune:"),
+      `thin migration summary did not look correct.\n${migrate.stdout}`,
+    );
+
+    assert(
+      !(await fileExists(path.join(repoPath, ".harness-docs", "verification.md"))),
+      "thin migration should prune managed .harness-docs assets.",
+    );
+    assert(
+      !(await fileExists(path.join(repoPath, "CHECKPOINTS.md"))),
+      "thin migration should prune managed CHECKPOINTS.md.",
+    );
+    assert(
+      !(await fileExists(path.join(repoPath, "init.sh"))),
+      "thin migration should prune managed repo-local init.sh.",
+    );
+    assert(
+      await fileExists(path.join(repoPath, "AGENTS.md")) &&
+        await fileExists(path.join(repoPath, "CODEX.md")),
+      "thin migration should preserve thin wrappers.",
+    );
+
+    const doctor = spawnSync(
+      process.execPath,
+      [distPath, "doctor", "--repo-path", repoPath, "--json"],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        env,
+      },
+    );
+    assert(
+      doctor.status === 0,
+      `doctor failed after thin migration.\nstdout:\n${doctor.stdout}\nstderr:\n${doctor.stderr}`,
+    );
+    const snapshot = JSON.parse(doctor.stdout);
+    assert(
+      snapshot.scaffold_layout === "thin" &&
+        ["ok", "degraded"].includes(snapshot.doctor_summary?.status) &&
+        snapshot.runtime_status?.runtime_source?.kind === "workspace_dev",
+      `doctor did not report a healthy thin repo after migration.\n${doctor.stdout}`,
     );
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
@@ -2032,7 +2288,8 @@ cwd = "."
     );
     const snapshot = JSON.parse(doctor.stdout);
     assert(
-      snapshot.doctor_summary?.status === "ok",
+      ["ok", "degraded"].includes(snapshot.doctor_summary?.status) &&
+        snapshot.runtime_status?.runtime_source?.kind === "workspace_dev",
       `doctor still reported managed binding drift after setup --update.\n${doctor.stdout}`,
     );
   } finally {
@@ -2169,7 +2426,7 @@ async function smokeSetupAndRepair() {
     );
     assert(
       setup.stdout.includes("setup summary") &&
-        setup.stdout.includes("health: ok"),
+        setup.stdout.includes("health: degraded"),
       `setup did not emit the expected summary.\n${setup.stdout}`,
     );
 
@@ -2490,6 +2747,273 @@ async function smokeSetupAndRepair() {
   }
 }
 
+async function smokeTestingPolicyAndHeadroom() {
+  const tempRoot = await mkdtemp(
+    path.join(os.tmpdir(), "harness-smoke-testing-head-"),
+  );
+  const repoDetected = path.join(tempRoot, "repo-detected");
+  const repoJsFallback = path.join(tempRoot, "repo-js-fallback");
+  const repoNonJs = path.join(tempRoot, "repo-non-js");
+
+  try {
+    await mkdir(repoDetected, { recursive: true });
+    await writeJson(
+      path.join(repoDetected, "package.json"),
+      {
+        name: "repo-detected",
+        packageManager: "pnpm@10.33.4",
+        scripts: {
+          "test:unit": "vitest run",
+          smoke: "node smoke.mjs",
+        },
+      },
+      true,
+    );
+
+    const setupDetected = spawnSync(
+      process.execPath,
+      [
+        distPath,
+        "setup",
+        "--repo-path",
+        repoDetected,
+        "--layout",
+        "full",
+        "--clients",
+        "claude,codex,copilot,opencode",
+      ],
+      {
+        cwd: repoDetected,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      setupDetected.status === 0,
+      `setup failed on repo with detectable testing guidance.\nstdout:\n${setupDetected.stdout}\nstderr:\n${setupDetected.stderr}`,
+    );
+
+    const detectedConfigRaw = await readFile(
+      path.join(repoDetected, "harness.config.json"),
+      "utf8",
+    );
+    const detectedConfig = JSON.parse(detectedConfigRaw);
+    assert(
+      detectedConfig.testing?.fastCommand === "pnpm test:unit" &&
+        detectedConfig.testing?.integrationCommand === "pnpm smoke",
+      `setup did not persist detected testing guidance.\n${detectedConfigRaw}`,
+    );
+    assert(
+      Array.isArray(detectedConfig.allowedCommands) &&
+        detectedConfig.allowedCommands.includes("pnpm test:unit"),
+      `setup did not merge fastCommand into allowedCommands.\n${detectedConfigRaw}`,
+    );
+
+    const detectedVerification = await readFile(
+      path.join(repoDetected, ".harness-docs", "verification.md"),
+      "utf8",
+    );
+    assert(
+      detectedVerification.includes("Policy TDD parcial") &&
+        detectedVerification.includes("pnpm test:unit") &&
+        detectedVerification.includes("No conviertas el tooling en un preflight universal"),
+      `setup did not propagate TDD/testing guidance to verification.md.\n${detectedVerification}`,
+    );
+
+    const detectedImplementerPrompt = await readFile(
+      path.join(repoDetected, ".github", "prompts", "implementer.prompt.md"),
+      "utf8",
+    );
+    assert(
+      detectedImplementerPrompt.includes("## Red -> Green Evidence") &&
+        detectedImplementerPrompt.includes("head_<name>.md") &&
+        detectedImplementerPrompt.includes("No hagas preflight de versiones o binarios"),
+      `setup did not propagate TDD/headroom guidance to implementer prompt.\n${detectedImplementerPrompt}`,
+    );
+
+    const detectedCodex = await readFile(
+      path.join(repoDetected, "CODEX.md"),
+      "utf8",
+    );
+    assert(
+      detectedCodex.includes("head_<feature>.md") &&
+        detectedCodex.includes("unit`, `contract` o `smoke`"),
+      `setup did not propagate headroom/testing guidance to CODEX.md.\n${detectedCodex}`,
+    );
+
+    await writeJson(
+      path.join(repoDetected, ".harness", "feature_list.json"),
+      {
+        project: "testing-headroom",
+        description: "testing guidance smoke",
+        rules: {
+          one_feature_at_a_time: true,
+          require_green_init_to_close: true,
+          require_approved_spec_to_implement: true,
+          valid_status: [
+            "pending",
+            "spec_ready",
+            "in_progress",
+            "done",
+            "blocked",
+          ],
+          sdd_required_when: 'feature has "sdd": true',
+          scope_field: "optional",
+        },
+        features: [
+          {
+            id: 1,
+            name: "contract_snapshot_policy",
+            description: "Ajusta doctor status json contract",
+            status: "in_progress",
+            sdd: true,
+          },
+        ],
+      },
+      true,
+    );
+    await mkdir(path.join(repoDetected, "specs", "contract_snapshot_policy"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(
+        repoDetected,
+        "specs",
+        "contract_snapshot_policy",
+        "spec_summary.md",
+      ),
+      "Goal: estabilizar doctor/status json contract\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(
+        repoDetected,
+        "specs",
+        "contract_snapshot_policy",
+        "requirements.md",
+      ),
+      "- R1. doctor expone output estable\n- R2. status expone output estable\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(
+        repoDetected,
+        "specs",
+        "contract_snapshot_policy",
+        "tasks.md",
+      ),
+      "- [ ] T1 (R2) ajustar output\n- [x] T2 (R1) cubrir doctor\n",
+      "utf8",
+    );
+
+    const repairDetected = spawnSync(
+      process.execPath,
+      [distPath, "repair", "--repo-path", repoDetected],
+      {
+        cwd: repoDetected,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      repairDetected.status === 0,
+      `repair failed to refresh headroom on active feature.\nstdout:\n${repairDetected.stdout}\nstderr:\n${repairDetected.stderr}`,
+    );
+
+    const headSummary = await readFile(
+      path.join(
+        repoDetected,
+        ".harness",
+        "progress",
+        "head_contract_snapshot_policy.md",
+      ),
+      "utf8",
+    );
+    assert(
+      headSummary.includes("requirements_focus: R2") &&
+        headSummary.includes("test_layer: contract") &&
+        headSummary.includes("fast_command: pnpm test:unit"),
+      `repair did not refresh head_<feature>.md with testing/loop guidance.\n${headSummary}`,
+    );
+
+    await mkdir(repoJsFallback, { recursive: true });
+    await writeJson(
+      path.join(repoJsFallback, "package.json"),
+      {
+        name: "repo-js-fallback",
+        packageManager: "pnpm@10.33.4",
+      },
+      true,
+    );
+    const setupJsFallback = spawnSync(
+      process.execPath,
+      [
+        distPath,
+        "setup",
+        "--repo-path",
+        repoJsFallback,
+        "--layout",
+        "full",
+        "--clients",
+        "claude,codex,copilot,opencode",
+      ],
+      {
+        cwd: repoJsFallback,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      setupJsFallback.status === 0,
+      `setup failed on JS fallback repo.\nstdout:\n${setupJsFallback.stdout}\nstderr:\n${setupJsFallback.stderr}`,
+    );
+    const jsFallbackVerification = await readFile(
+      path.join(repoJsFallback, ".harness-docs", "verification.md"),
+      "utf8",
+    );
+    assert(
+      /Vitest/.test(jsFallbackVerification),
+      `JS/TS fallback did not recommend Vitest.\n${jsFallbackVerification}`,
+    );
+
+    await mkdir(repoNonJs, { recursive: true });
+    await writeFile(
+      path.join(repoNonJs, "pyproject.toml"),
+      "[project]\nname = \"repo-non-js\"\nversion = \"0.1.0\"\n",
+      "utf8",
+    );
+    const setupNonJs = spawnSync(
+      process.execPath,
+      [
+        distPath,
+        "setup",
+        "--repo-path",
+        repoNonJs,
+        "--layout",
+        "full",
+        "--clients",
+        "claude,codex,copilot,opencode",
+      ],
+      {
+        cwd: repoNonJs,
+        encoding: "utf8",
+      },
+    );
+    assert(
+      setupNonJs.status === 0,
+      `setup failed on non-JS repo.\nstdout:\n${setupNonJs.stdout}\nstderr:\n${setupNonJs.stderr}`,
+    );
+    const nonJsVerification = await readFile(
+      path.join(repoNonJs, ".harness-docs", "verification.md"),
+      "utf8",
+    );
+    assert(
+      nonJsVerification.includes("suite rápida nativa del stack") &&
+        !/Vitest/.test(nonJsVerification),
+      `Non-JS fallback should stay neutral instead of forcing Vitest.\n${nonJsVerification}`,
+    );
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
 async function smokeRelativeRepoPathStatusFallback() {
   const tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "harness-smoke-relative-status-"),
@@ -2585,7 +3109,7 @@ async function smokeAssumedGlobalBindings() {
 
     const localSetup = spawnSync(
       process.execPath,
-      [distPath, "setup", "--repo-path", repoPath, "--clients", "copilot"],
+      [distPath, "setup", "--repo-path", repoPath, "--clients", "claude"],
       {
         cwd: repoPath,
         encoding: "utf8",
@@ -2595,8 +3119,7 @@ async function smokeAssumedGlobalBindings() {
       localSetup.status === 0,
       `local setup for assumed binding smoke failed.\nstdout:\n${localSetup.stdout}\nstderr:\n${localSetup.stderr}`,
     );
-    await rm(path.join(repoPath, ".vscode", "mcp.json"), { force: true });
-    await rm(path.join(repoPath, ".codex", "config.toml"), { force: true });
+    await rm(path.join(repoPath, ".mcp.json"), { force: true });
 
     const globalSetup = spawnSync(
       process.execPath,
@@ -2747,7 +3270,14 @@ async function smokeStatusBriefRefreshesStaleHealth() {
 
     const setup = spawnSync(
       process.execPath,
-      [distPath, "setup", "--repo-path", repoPath, "--clients", "codex"],
+      [
+        distPath,
+        "setup",
+        "--repo-path",
+        repoPath,
+        "--clients",
+        "claude,copilot,codex,opencode",
+      ],
       {
         cwd: repoPath,
         encoding: "utf8",
@@ -2774,7 +3304,8 @@ async function smokeStatusBriefRefreshesStaleHealth() {
     );
     const firstSnapshot = JSON.parse(firstStatus.stdout);
     assert(
-      firstSnapshot.doctor_summary?.status === "ok" &&
+      ["ok", "degraded"].includes(firstSnapshot.doctor_summary?.status) &&
+        firstSnapshot.runtime_status?.runtime_source?.kind === "workspace_dev" &&
         firstSnapshot.binding_status?.repo_scoped?.codex === true &&
         firstSnapshot.client_readiness?.codex?.state === "verified",
       `initial status snapshot is not healthy before breaking the binding.\n${firstStatus.stdout}`,
@@ -3003,7 +3534,8 @@ async function smokeGlobalPreferredRepoScopedBindings() {
     );
     const explicitSnapshot = JSON.parse(explicitDoctor.stdout);
     assert(
-      explicitSnapshot.client_verification?.vscode?.state === "verified" &&
+      ["ok", "degraded"].includes(explicitSnapshot.doctor_summary?.status) &&
+        explicitSnapshot.runtime_status?.runtime_source?.kind === "workspace_dev" &&
         explicitSnapshot.client_verification?.claude_code?.state ===
           "verified" &&
         explicitSnapshot.client_verification?.codex?.state === "verified",
@@ -3467,7 +3999,60 @@ async function smokeReleasePublishGate() {
   }
 }
 
+async function smokeManagedRuntimeSharedDocs() {
+  const docsList = spawnSync(
+    smokeManagedShimPath,
+    ["docs", "list"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        XDG_CONFIG_HOME: smokeXdgHome,
+      },
+    },
+  );
+  assert(
+    docsList.status === 0 &&
+      docsList.stdout.includes("verification") &&
+      docsList.stdout.includes("loop_contract"),
+    `Managed runtime docs list failed.\nstdout:\n${docsList.stdout}\nstderr:\n${docsList.stderr}`,
+  );
+
+  const docShow = spawnSync(
+    smokeManagedShimPath,
+    ["docs", "show", "verification"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        XDG_CONFIG_HOME: smokeXdgHome,
+      },
+    },
+  );
+  assert(
+    docShow.status === 0 && docShow.stdout.includes("# Verificación"),
+    `Managed runtime docs show failed.\nstdout:\n${docShow.stdout}\nstderr:\n${docShow.stderr}`,
+  );
+}
+
 function smokeCliSurfaces() {
+  for (const versionArg of ["--version", "-v", "version"]) {
+    const version = spawnSync(process.execPath, [distPath, versionArg], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    assert(
+      version.status === 0 && version.stdout.trim() === harnessVersion,
+      `${versionArg} did not print the CLI version.\nstdout:\n${version.stdout}\nstderr:\n${version.stderr}`,
+    );
+    assert(
+      !version.stderr.includes("harness MCP ready"),
+      `${versionArg} should not start the MCP server.\nstderr:\n${version.stderr}`,
+    );
+  }
+
   const help = spawnSync(process.execPath, [distPath, "help"], {
     cwd: repoRoot,
     encoding: "utf8",

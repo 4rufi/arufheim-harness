@@ -23,6 +23,13 @@ in_progress -> plan -> execute -> verify -> review -> route_back? -> done|blocke
 
 Úsalo cuando implementar mal cuesta más que escribir el spec.
 
+Disciplina de feedback dentro del loop:
+
+- traduce `R<n>` a comportamiento verificable durante `plan`
+- intenta la capa rápida correcta durante `execute`: `unit`, `contract` o `smoke`
+- si no existe test rápido razonable, deja excepción justificada y evidencia ejecutable
+- `verify` siempre corre la verificación estándar relevante antes de pedir review
+
 ## 3. orchestration
 
 Usa este modo cuando hace falta dividir trabajo entre roles:
@@ -42,4 +49,4 @@ Usa este modo cuando hace falta dividir trabajo entre roles:
 ## Regla operativa
 
 No mezclar modos sin decirlo. El modo activo debe ser evidente desde el estado
-de la feature, el loop file y los artifacts que produce.
+de la feature, el loop file, `head_<feature>.md` y los artifacts que produce.

@@ -3,8 +3,10 @@ import process from "node:process";
 import {
   evaluateHarnessHealth,
   formatClientReadinessBrief,
+  formatRuntimeArtifactBrief,
   listClientReadinessEntries,
   formatHealthBrief,
+  formatRuntimeSourceBrief,
 } from "./health.js";
 
 interface RunDoctorOptions {
@@ -37,6 +39,10 @@ export async function runDoctor(
     console.log("\nharness doctor\n");
     console.log(`  repo: ${snapshot.repo_path}`);
     console.log(`  layout: ${snapshot.workflow_layout}`);
+    console.log(`  scaffold: ${snapshot.scaffold_layout}`);
+    console.log(
+      `  runtime: ${snapshot.runtime_status.state} (${snapshot.runtime_status.path}) artifact=${formatRuntimeArtifactBrief(snapshot.runtime_status)} source=${formatRuntimeSourceBrief(snapshot.runtime_status)}`,
+    );
     console.log(`  health: ${formatHealthBrief(snapshot)}`);
     if (snapshot.loop_summary) {
       console.log(

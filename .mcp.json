@@ -1,10 +1,9 @@
 {
   "mcpServers": {
     "arufheim-harness": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "--yes",
-        "arufheim-harness",
+        ".harness/runtime/launch-global-runtime.mjs",
         "--repo-path",
         ".",
         "--client",

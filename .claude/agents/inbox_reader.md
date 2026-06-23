@@ -4,7 +4,7 @@ description: Procesa archivos de requerimientos en .harness/inbox/ y los convier
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v4 -->
+<!-- harness-agents-v7 -->
 
 # Inbox Reader
 

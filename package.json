@@ -1,23 +1,27 @@
 {
   "name": "arufheim-harness",
-  "version": "1.2.0",
+  "version": "1.4.1",
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build:shared-docs-registry": "node scripts/generate-shared-docs-registry.mjs",
+    "build:runtime-bundle": "node scripts/build-runtime-bundle.mjs",
+    "build": "node scripts/generate-shared-docs-registry.mjs && tsc -p tsconfig.json && node scripts/build-runtime-bundle.mjs",
     "harness-mcp": "node dist/index.js",
     "smoke": "node scripts/smoke-stdio.mjs",
-    "test": "node scripts/smoke-stdio.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node scripts/generate-shared-docs-registry.mjs && vitest run",
+    "test:unit": "node scripts/generate-shared-docs-registry.mjs && vitest run",
+    "test:watch": "node scripts/generate-shared-docs-registry.mjs && vitest",
+    "typecheck": "node scripts/generate-shared-docs-registry.mjs && tsc -p tsconfig.json --noEmit",
     "release:check": "./scripts/release-check.sh",
     "release:publish-check": "node scripts/release-publish-check.mjs",
-    "verify": "./scripts/pnpmw.sh typecheck && ./scripts/pnpmw.sh build && ./scripts/pnpmw.sh smoke"
+    "verify": "./scripts/pnpmw.sh typecheck && ./scripts/pnpmw.sh test && ./scripts/pnpmw.sh build && ./scripts/pnpmw.sh smoke"
   },
   "bin": {
-    "arufheim-harness": "./dist/index.js"
+    "arufheim-harness": "dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.2",
@@ -26,7 +30,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.0.0"
+    "esbuild": "^0.27.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.9"
   },
   "files": [
     "dist",

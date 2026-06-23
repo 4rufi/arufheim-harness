@@ -17,10 +17,12 @@ Define cómo se reparten trabajo y responsabilidades entre agentes.
   - output: `spec_ready -> specs/<name>/`
 - `implementer`
   - output: append a `.harness/progress/impl_<name>.md`
-  - incluye `## Attempt N`, hipótesis, cambios, checks, resultado y `strategy_delta`
+  - incluye `## Test Plan`, `## Attempt N`, `## Red -> Green Evidence`, `## Verification` y `## Exception Justification` cuando aplique
+  - deja explícita la capa de feedback elegida: `unit`, `contract` o `smoke`
 - `reviewer`
   - output: append a `.harness/progress/review_<name>.md`
   - incluye `## Review N`, veredicto y clasificación `verification_failed | review_rejected | tool_failure | context_gap | external_blocker`
+  - valida que cada requirement observable tenga la capa correcta de feedback o una excepción justificada
 
 ## Reglas
 
@@ -36,6 +38,13 @@ Define cómo se reparten trabajo y responsabilidades entre agentes.
 pending -> spec_ready -> aprobación humana -> in_progress
 in_progress -> plan -> execute -> verify -> review -> route_back? -> done|blocked
 ```
+
+## TDD parcial por capas
+
+- `unit-first` cuando el comportamiento es claro, rápido y determinista
+- `contract-first` para salidas públicas estables de CLI/MCP
+- `smoke-driven` para setup, repair, release, stdio y bindings
+- trabajo exploratorio de diseño/UX puede diferir la capa rápida hasta fijar el contrato
 
 ## Objetivo
 

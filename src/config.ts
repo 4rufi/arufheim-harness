@@ -42,6 +42,7 @@ const localScaffoldClientSchema = z.enum([
   "opencode",
   "codex",
 ]);
+const scaffoldLayoutSchema = z.enum(["thin", "full"]);
 
 const providerModelPairSchema = z.object({
   fast: z.string().min(1),
@@ -148,12 +149,18 @@ const agentRoutingSchema = z.object({
 });
 
 const scaffoldConfigSchema = z.object({
+  layout: scaffoldLayoutSchema.optional(),
   localClients: z.array(localScaffoldClientSchema).default([
     "claude",
     "copilot",
     "opencode",
     "codex",
   ]),
+});
+
+const testingConfigSchema = z.object({
+  fastCommand: z.string().min(1).optional(),
+  integrationCommand: z.string().min(1).optional(),
 });
 
 export const DEFAULT_LOOP_POLICY = {
@@ -237,14 +244,18 @@ const harnessConfigSchema = z.object({
   }),
   loopPolicy: loopPolicySchema.optional(),
   scaffold: scaffoldConfigSchema.optional(),
+  testing: testingConfigSchema.optional(),
 });
 
-const GLOBAL_CONFIG_FILENAME = "harness.config.json";
-const GLOBAL_CONFIG_DIRNAME = "arufheim-harness";
+export const GLOBAL_CONFIG_FILENAME = "harness.config.json";
+export const GLOBAL_CONFIG_DIRNAME = "arufheim-harness";
 
 export type AgentRoutingConfig = z.infer<typeof agentRoutingSchema>;
 export type HarnessConfigDocument = z.infer<typeof harnessConfigSchema>;
+export type HarnessScaffoldConfig = z.infer<typeof scaffoldConfigSchema>;
+export type HarnessTestingConfig = z.infer<typeof testingConfigSchema>;
 export type LocalScaffoldClient = z.infer<typeof localScaffoldClientSchema>;
+export type ScaffoldLayout = z.infer<typeof scaffoldLayoutSchema>;
 export type LoopPolicyConfig = z.infer<typeof loopPolicySchema>;
 export type HarnessClientId =
   | "vscode"
@@ -263,6 +274,8 @@ export interface ResolvedharnessConfig {
   permissionPolicy: PermissionPolicy;
   agentRouting: AgentRoutingConfig;
   loopPolicy: LoopPolicyConfig;
+  scaffold: HarnessScaffoldConfig;
+  testing: HarnessTestingConfig;
   clientId: HarnessClientId | null;
   logFilePath?: string;
 }
@@ -308,6 +321,8 @@ export async function loadConfig(
       permissionPolicy: normalizePermissionPolicy(parsed.permissionPolicy),
       agentRouting: normalizeAgentRouting(parsed.agentRouting),
       loopPolicy: normalizeLoopPolicy(parsed.loopPolicy),
+      scaffold: normalizeScaffoldConfig(parsed.scaffold),
+      testing: normalizeTestingConfig(parsed.testing),
       clientId,
       logFilePath: undefined,
     };
@@ -350,6 +365,8 @@ export async function loadConfig(
     permissionPolicy: normalizePermissionPolicy(parsed.permissionPolicy),
     agentRouting: normalizeAgentRouting(parsed.agentRouting),
     loopPolicy: normalizeLoopPolicy(parsed.loopPolicy),
+    scaffold: normalizeScaffoldConfig(parsed.scaffold),
+    testing: normalizeTestingConfig(parsed.testing),
     clientId,
     logFilePath: undefined,
   };
@@ -365,12 +382,32 @@ export function parseHarnessConfigDocument(
   return harnessConfigSchema.parse(input);
 }
 
-export function getGlobalConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+export function getGlobalHarnessRoot(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform === "win32") {
+    const appData = env.APPDATA;
+    if (typeof appData === "string" && appData.trim().length > 0) {
+      return path.join(path.resolve(appData), GLOBAL_CONFIG_DIRNAME);
+    }
+  }
+
   const root = env.XDG_CONFIG_HOME
     ? path.resolve(env.XDG_CONFIG_HOME)
     : path.join(os.homedir(), ".config");
 
-  return path.join(root, GLOBAL_CONFIG_DIRNAME, GLOBAL_CONFIG_FILENAME);
+  return path.join(root, GLOBAL_CONFIG_DIRNAME);
+}
+
+export function getGlobalConfigPath(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return path.join(
+    getGlobalHarnessRoot(env, platform),
+    GLOBAL_CONFIG_FILENAME,
+  );
 }
 
 export async function ensureConfigFile(configPath: string): Promise<void> {
@@ -496,6 +533,40 @@ function normalizeLoopPolicy(
     maxNoProgressRounds: source.maxNoProgressRounds,
     requireStrategyDelta: source.requireStrategyDelta,
     autoRouteBack: source.autoRouteBack,
+  };
+}
+
+function normalizeTestingConfig(
+  config: HarnessTestingConfig | undefined,
+): HarnessTestingConfig {
+  return {
+    fastCommand: config?.fastCommand?.trim() || undefined,
+    integrationCommand: config?.integrationCommand?.trim() || undefined,
+  };
+}
+
+function normalizeScaffoldConfig(
+  config: HarnessScaffoldConfig | undefined,
+): HarnessScaffoldConfig {
+  return {
+    layout:
+      config?.layout === "thin" || config?.layout === "full"
+        ? config.layout
+        : undefined,
+    localClients: Array.from(
+      new Set(
+        (config?.localClients ?? ["claude", "copilot", "opencode", "codex"])
+          .filter(
+            (
+              value,
+            ): value is "claude" | "copilot" | "opencode" | "codex" =>
+              value === "claude" ||
+              value === "copilot" ||
+              value === "opencode" ||
+              value === "codex",
+          ),
+      ),
+    ),
   };
 }
 

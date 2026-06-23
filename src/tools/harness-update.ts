@@ -5,6 +5,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
+import { refreshActiveHeadSummary } from "../headroom.js";
 import {
   ensureLoopForFeature,
   syncExistingLoopIdentity,
@@ -217,6 +218,8 @@ export function registerHarnessUpdateTool(
           } finally {
             await handle.close();
           }
+
+          await refreshActiveHeadSummary(config.repoPath).catch(() => undefined);
 
           return {
             updated: archivedFeature ?? nextFeature,

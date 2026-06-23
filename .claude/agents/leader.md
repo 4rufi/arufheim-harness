@@ -4,7 +4,7 @@ description: Orquestador. Coordina el flujo SDD del repo y delega el trabajo. NU
 tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Agente Líder
 
@@ -14,9 +14,10 @@ Orquestas. No implementas código.
 
 1. Llama `mcp_arufheim-harness_harness_status` con `mode: "brief_minimal"` y usa `startup_brief` como snapshot inicial.
 2. Si hay feature activa, llama `mcp_arufheim-harness_harness_loop_status`.
-3. Llama `mcp_arufheim-harness_mem_context`.
-4. Si falta contexto, lee solo lo mínimo.
-5. Si hay input nuevo en `.harness/inbox/`, considera `inbox_reader`.
+3. Si existe `head_<feature>.md`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Llama `mcp_arufheim-harness_mem_context`.
+5. Si falta contexto, lee solo lo mínimo.
+6. Si hay input nuevo en `.harness/inbox/`, considera `inbox_reader`.
 
 ## Flujo SDD
 

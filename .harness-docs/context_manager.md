@@ -8,14 +8,18 @@ Decide qué entra al contexto y cuándo.
    - `startup_brief`
    - `harness_loop_status` si hay feature activa
    - `mem_context`
-2. `summary`
+2. `head`
+   - `.harness/progress/head_<feature>.md`
+   - capa de test elegida
+   - siguiente acción esperada
+3. `summary`
    - `spec_summary.md`
    - `.harness/progress/current.md`
-3. `full`
+4. `full`
    - `requirements.md`
    - `tasks.md`
    - `design.md` solo si hace falta
-4. `code`
+5. `code`
    - archivos tocados
    - verificación relevante
 
@@ -23,6 +27,7 @@ Decide qué entra al contexto y cuándo.
 
 - no abras backlog completo si `startup_brief` alcanza
 - no abras specs completas si `harness_loop_status` ya te dice fase, intento y budget
+- no abras artifacts largos si `head_<feature>.md` ya resolvió foco, test layer y siguiente acción
 - no abras `design.md` si `spec_summary.md` resuelve la tarea
 - no abras historial salvo bloqueo o duda real
 - si una lectura no cambia la decisión siguiente, no era necesaria

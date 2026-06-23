@@ -11,6 +11,14 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import * as readline from "node:readline/promises";
+import type { HarnessClientId, ScaffoldLayout } from "./config.js";
+import {
+  REPO_RUNTIME_LAUNCHER_PATH,
+  buildRepoLauncherArgs,
+  ensureManagedGlobalRuntime,
+  getManagedGlobalRuntimeShimPath,
+  getRepoRuntimeLauncherSource,
+} from "./runtime.js";
 import {
   DEFAULT_CURRENT_MD,
   DEFAULT_HISTORY_MD,
@@ -21,6 +29,13 @@ import {
   serializeFeatureList,
   type WorkflowPaths,
 } from "./workflow.js";
+import {
+  buildTestingTemplateContext,
+  mergeAllowedCommands,
+  resolveRepoTestingGuidance,
+  type RepoTestingGuidance,
+} from "./testing.js";
+import { inferScaffoldLayout } from "./scaffold-layout.js";
 
 const harness_CONFIG_NAME = "harness.config.json";
 const VSCODE_MCP_PATH = ".vscode/mcp.json";
@@ -41,11 +56,19 @@ const INBOX_README = ".harness/inbox/README.md";
 const GITHUB_PROMPTS_DIR = ".github/prompts";
 const AGENTS_MD_PATH = "AGENTS.md";
 const REPO_INIT_SCRIPT_PATH = "init.sh";
-export const AGENTS_VERSION_MARKER = "<!-- harness-agents-v5 -->";
+export const AGENTS_VERSION_MARKER = "<!-- harness-agents-v7 -->";
 export const AGENTS_MANAGED_START_MARKER = "<!-- harness-agents-managed:start -->";
 export const AGENTS_MANAGED_END_MARKER = "<!-- harness-agents-managed:end -->";
 
 const HARNESS_CONFIG_VERSION = 1;
+
+interface TemplateTestingContext {
+  fastCommand: string;
+  integrationCommand: string;
+  fastLine: string;
+  integrationLine: string;
+  fallbackLine: string;
+}
 
 export type InitTarget =
   | "all"
@@ -154,82 +177,100 @@ const DEFAULT_harness_CONFIG = {
   agentRouting: DEFAULT_AGENT_ROUTING_CONFIG,
 };
 
+function buildDefaultHarnessConfig(
+  layout: ScaffoldLayout,
+  target: InitTarget,
+): Record<string, unknown> {
+  return {
+    ...DEFAULT_harness_CONFIG,
+    scaffold: {
+      layout,
+      localClients: expandManagedLocalClients(target),
+    },
+  };
+}
+
 const ALL_LOCAL_CLIENTS = ["claude", "copilot", "opencode", "codex"] as const;
 
-const DEFAULT_MCP_JSON = {
-  servers: {
-    "arufheim-harness": {
-      type: "stdio",
-      command: "npx",
-      args: [
-        "arufheim-harness",
-        "--repo-path",
-        "${workspaceFolder}",
-        "--client",
-        "vscode",
-      ],
-    },
-  },
-};
+function buildRepoLauncherInvocation(
+  repoPathArg: string,
+  clientId: HarnessClientId,
+): {
+  command: string;
+  args: string[];
+} {
+  return {
+    command: "node",
+    args: buildRepoLauncherArgs(repoPathArg, clientId),
+  };
+}
 
-const DEFAULT_OPENCODE_JSON = {
-  $schema: "https://opencode.ai/config.json",
-  mcp: {
-    "arufheim-harness": {
-      type: "local",
-      command: [
-        "npx",
-        "arufheim-harness",
-        "--repo-path",
-        ".",
-        "--client",
-        "opencode",
-      ],
-      enabled: true,
+function buildDefaultVSCodeMcpJson(): Record<string, unknown> {
+  return {
+    servers: {
+      "arufheim-harness": {
+        type: "stdio",
+        ...buildRepoLauncherInvocation("${workspaceFolder}", "vscode"),
+      },
     },
-  },
-  permission: {
-    "*": "ask",
-    read: "allow",
-    glob: "allow",
-    grep: "allow",
-    list: "allow",
-    "arufheim-harness_harness_status": "allow",
-    "arufheim-harness_harness_loop_status": "allow",
-    "arufheim-harness_harness_metrics": "allow",
-    "arufheim-harness_list_files": "allow",
-    "arufheim-harness_read_file": "allow",
-    "arufheim-harness_search_repo": "allow",
-    "arufheim-harness_mem_context": "allow",
-    "arufheim-harness_mem_search": "allow",
-    "arufheim-harness_mem_get": "allow",
-    "arufheim-harness_mem_get_observation": "allow",
-  },
-};
+  };
+}
 
-const DEFAULT_CLAUDE_PROJECT_MCP_JSON = {
-  mcpServers: {
-    "arufheim-harness": {
-      command: "npx",
-      args: [
-        "--yes",
-        "arufheim-harness",
-        "--repo-path",
-        ".",
-        "--client",
-        "claude-code",
-      ],
-      cwd: ".",
-      env: {},
+function buildDefaultOpenCodeJson(): Record<string, unknown> {
+  return {
+    $schema: "https://opencode.ai/config.json",
+    mcp: {
+      "arufheim-harness": {
+        type: "local",
+        command: [
+          "node",
+          ...buildRepoLauncherArgs(".", "opencode"),
+        ],
+        enabled: true,
+      },
     },
-  },
-};
+    permission: {
+      "*": "ask",
+      read: "allow",
+      glob: "allow",
+      grep: "allow",
+      list: "allow",
+      "arufheim-harness_harness_status": "allow",
+      "arufheim-harness_harness_loop_status": "allow",
+      "arufheim-harness_harness_metrics": "allow",
+      "arufheim-harness_list_files": "allow",
+      "arufheim-harness_read_file": "allow",
+      "arufheim-harness_search_repo": "allow",
+      "arufheim-harness_mem_context": "allow",
+      "arufheim-harness_mem_search": "allow",
+      "arufheim-harness_mem_get": "allow",
+      "arufheim-harness_mem_get_observation": "allow",
+    },
+  };
+}
+
+function buildDefaultClaudeProjectMcpJson(): Record<string, unknown> {
+  return {
+    mcpServers: {
+      "arufheim-harness": {
+        ...buildRepoLauncherInvocation(".", "claude-code"),
+        cwd: ".",
+        env: {},
+      },
+    },
+  };
+}
+
+function renderTomlArray(values: string[]): string {
+  return `[${values.map((value) => JSON.stringify(value)).join(", ")}]`;
+}
 
 function renderCodexProjectConfigToml(): string {
+  const invocation = buildRepoLauncherInvocation(".", "codex");
   return [
     "[mcp_servers.arufheim-harness]",
-    'command = "npx"',
-    'args = ["--yes", "arufheim-harness", "--repo-path", ".", "--client", "codex"]',
+    `command = ${JSON.stringify(invocation.command)}`,
+    `args = ${renderTomlArray(invocation.args)}`,
     'cwd = "."',
     "",
   ].join("\n");
@@ -506,7 +547,7 @@ tools:
   - mcp_arufheim-harness_mem_session_summary
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Leader
 
@@ -579,7 +620,7 @@ tools:
   - mcp_arufheim-harness_mem_session_summary
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Implementador
 
@@ -650,7 +691,7 @@ tools:
   - mcp_arufheim-harness_mem_search
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Revisor
 
@@ -698,7 +739,7 @@ tools:
   - mcp_arufheim-harness_mem_search
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Spec Author
 
@@ -746,7 +787,7 @@ tools:
   - mcp_arufheim-harness_inbox_consume
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Inbox Reader
 
@@ -781,7 +822,7 @@ tools:
   - mcp_arufheim-harness_harness_status
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Scoper
 
@@ -826,7 +867,7 @@ description: Orquestador. Coordina el flujo SDD del repo y delega el trabajo. NU
 tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Leader
 
@@ -887,7 +928,7 @@ description: Trabajador. Implementa una sola feature según su spec aprobado. Es
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Implementador
 
@@ -952,7 +993,7 @@ description: Revisor automático. Aprueba o rechaza el trabajo del implementador
 tools: Read, Write, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Revisor
 
@@ -995,7 +1036,7 @@ description: Redacta specs Kiro-style (requirements/design/tasks) para una featu
 tools: Read, Write, Edit, Glob, Grep
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Spec Author
 
@@ -1035,7 +1076,7 @@ description: Procesa archivos de requerimientos en inbox/ y los convierte en fea
 tools: Read, Write, Edit, Glob, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Inbox Reader
 
@@ -1066,7 +1107,7 @@ description: Filtra feature_list.json por proyecto/scope y define qué trabaja e
 tools: Read, Write, Edit, Glob
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Scoper
 
@@ -1164,6 +1205,7 @@ const SCAFFOLD_PROGRESS_README_CONTENT = `# Progress
 - \`impl_<feature>.md\`: evidencia de implementación
 - \`review_<feature>.md\`: veredicto de review
 - \`spec_<feature>.md\`: bloqueo del spec
+- \`head_<feature>.md\`: resumen corto derivado para la feature activa
 
 ## Reglas
 
@@ -1171,7 +1213,7 @@ const SCAFFOLD_PROGRESS_README_CONTENT = `# Progress
 - \`history.md\` solo agrega al final
 - registra en \`history.md\` toda sesión con cambios en código, docs, config o workflow, y toda decisión útil de preservar
 - no registres sesiones sin efecto ni exploración descartable que no deje una decisión o cambio concreto
-- nombres válidos: \`README.md\`, \`current.md\`, \`history.md\`, \`explore_*.md\`, \`impl_*.md\`, \`review_*.md\`, \`spec_*.md\`
+- nombres válidos: \`README.md\`, \`current.md\`, \`history.md\`, \`explore_*.md\`, \`impl_*.md\`, \`review_*.md\`, \`spec_*.md\`, \`head_*.md\`
 - no agregues headings nuevas a \`current.md\`
 - \`explore_*.md\` es opcional
 - \`Agente\` en \`history.md\` debe ser real
@@ -1288,6 +1330,31 @@ Usa la verificación estándar del repo. Si existe un comando único como
 \`verify\`, úsalo. Si no existe, corre el conjunto mínimo relevante para el
 cambio: tests, build, lint, typecheck o equivalente del stack.
 
+Si el repo usa layout \`full\`, \`./init.sh\` es un wrapper offline-first:
+resuelve \`ARUFHEIM_HARNESS_ENTRY\` o \`arufheim-harness\` en PATH y falla
+cerrado si no existe un binario local. No descarga el harness vía \`npx\`.
+
+## Policy TDD parcial
+
+- \`unit-first\`: lógica pura, reducers, reglas, parsers y helpers deterministas
+- \`contract-first\`: salidas públicas estables del CLI/MCP como \`doctor --json\`, \`status --json\` o shapes serializadas
+- \`smoke-driven\`: setup, repair, upgrade, release, stdio y bindings cliente
+- scaffold/docs/prompts: testing liviano o excepción justificada si no hay comportamiento ejecutable propio
+
+TDD no es obligatorio cuando todavía estás descubriendo diseño o UX. Primero
+fijas el contrato; después, la capa de test que mejor lo estabiliza.
+
+No conviertas el tooling en un preflight universal:
+
+- si el repo ya declara un comando rápido razonable, usa el primer comando real cuando haga falta
+- no gastes pasos en \`pnpm --version\`, \`vitest --version\` o equivalentes salvo fallo real del comando o trabajo explícito sobre tooling/testing
+
+## Sugerencia para este repo
+
+- {{testingFastLine}}
+- {{testingIntegrationLine}}
+- {{testingFallbackLine}}
+
 ## Paso documental
 
 Si el cambio modifica comportamiento visible, onboarding, comandos o flujo de
@@ -1358,20 +1425,25 @@ Decide qué entra al contexto y cuándo.
    - \`startup_brief\`
    - \`harness_loop_status\` si hay feature activa
    - \`mem_context\`
-2. \`summary\`
+2. \`head\`
+   - \`head_<feature>.md\`
+   - capa de test elegida
+   - comando rápido sugerido
+3. \`summary\`
    - \`spec_summary.md\`
    - \`{{currentPath}}\`
-3. \`full\`
+4. \`full\`
    - \`requirements.md\`
    - \`tasks.md\`
    - \`design.md\` solo si hace falta
-4. \`code\`
+5. \`code\`
    - archivos tocados
    - verificación relevante
 
 ## Regla de escalado
 
 - no abras backlog completo si \`startup_brief\` alcanza
+- no abras artifacts largos si \`head_<feature>.md\` ya resolvió foco, test layer y siguiente acción
 - no abras specs completas si \`harness_loop_status\` ya te dice fase, intento y budget
 - no abras \`design.md\` si \`spec_summary.md\` resuelve la tarea
 - no abras historial salvo bloqueo o duda real
@@ -1556,10 +1628,10 @@ Define cómo se reparten trabajo y responsabilidades entre agentes.
   - output: \`spec_ready -> specs/<name>/\`
 - \`implementer\`
   - output: append a \`.harness/progress/impl_<name>.md\`
-  - incluye \`## Attempt N\`, hipótesis, cambios, checks, resultado y \`strategy_delta\`
+  - incluye \`## Test Plan\`, \`## Attempt N\`, \`## Red -> Green Evidence\`, \`## Verification\` y \`strategy_delta\`
 - \`reviewer\`
   - output: append a \`.harness/progress/review_<name>.md\`
-  - incluye \`## Review N\`, veredicto y clasificación \`verification_failed | review_rejected | tool_failure | context_gap | external_blocker\`
+  - incluye \`## Review N\`, veredicto, capa de feedback usada y clasificación \`verification_failed | review_rejected | tool_failure | context_gap | external_blocker\`
 
 ## Reglas
 
@@ -1817,7 +1889,8 @@ const SCAFFOLD_CHECKPOINTS_CONTENT = `# CHECKPOINTS
 Un cambio está realmente listo solo si:
 
 - la verificación ejecutable relevante del repo pasó
-- requirements observables tienen test automatizado o excepción justificada
+- requirements observables usan la capa correcta de feedback: \`unit\`, \`contract\` o \`smoke\`, o tienen excepción justificada
+- si el cambio necesitaba feedback rápido y el repo ya tenía una suite rápida razonable, quedó evidencia de ese feedback antes del smoke final
 - \`tasks.md\` quedó consistente con el estado real
 - \`progress/impl_<feature>.md\` existe con trazabilidad \`R<n> -> verificación\`
 - \`progress/review_<feature>.md\` existe con checklist y veredicto
@@ -1869,11 +1942,12 @@ No narres pasos internos. Muestra resultado, no proceso.
 
 1. Llama \`harness_status\` con \`mode: "brief_minimal"\` y usa \`startup_brief\` como snapshot inicial.
 2. Si hay feature activa, llama \`harness_loop_status\` y toma \`phase\`, \`attempt_index\`, \`review_round\`, \`next_actor\` y budgets como estado vivo.
-3. Si la tool no quedó cargada, usa \`arufheim-harness status --brief-minimal --json\` como fallback y confirma \`repo_path\`.
-4. Si acabas de cambiar bindings o de abrir el repo, recarga el cliente y vuelve a intentar \`harness_status\` antes de mutar estado.
-5. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
-6. Lee solo los archivos mínimos que falten para el caso actual.
-7. Aplica el flujo definido en \`.claude/agents/leader.md\`
+3. Si existe \`.harness/progress/head_<feature>.md\`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Si la tool no quedó cargada, usa \`arufheim-harness status --brief-minimal --json\` como fallback y confirma \`repo_path\`.
+5. Si acabas de cambiar bindings o de abrir el repo, recarga el cliente y vuelve a intentar \`harness_status\` antes de mutar estado.
+6. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
+7. Lee solo los archivos mínimos que falten para el caso actual.
+8. Aplica el flujo definido en \`.claude/agents/leader.md\`
 
 Si necesitas estimar costo local del startup, loop o triage sin tocar métricas reales, usa \`arufheim-harness simulate --flow <startup|activation|loop|triage> --json\`.
 
@@ -1882,6 +1956,7 @@ Si necesitas estimar costo local del startup, loop o triage sin tocar métricas 
 - \`leader\` controla \`plan -> execute -> verify -> review -> analyze -> route_back\`.
 - Si \`verify\` o \`review\` fallan, el route-back es automático dentro de budgets; el humano entra solo en gates existentes o bloqueos reales.
 - No repitas un retry equivalente sin \`strategy_delta\`.
+- Usa \`unit\`, \`contract\` o \`smoke\` según el tipo de cambio; no fuerces TDD fuerte cuando el diseño aún no está claro.
 `;
 
 const SCAFFOLD_CODEX_MD_TEMPLATE = `# Instrucciones para Codex
@@ -1917,12 +1992,13 @@ No narres pasos internos. Muestra resultado, no proceso.
 
 1. Llama \`harness_status\` con \`mode: "brief_minimal"\` y usa \`startup_brief\` como snapshot inicial.
 2. Si hay feature activa, llama \`harness_loop_status\` y toma \`phase\`, \`attempt_index\`, \`review_round\`, \`next_actor\` y budgets como estado vivo.
-3. Si la tool no existe en la sesión, usa \`arufheim-harness status --brief-minimal --json\` como fallback operativo y confirma \`repo_path\`.
-4. Si acabas de cambiar bindings repo-scoped, reabre el repo o inicia una sesión nueva para que Codex recargue \`.codex/config.toml\`.
-5. Verifica que \`repo_path\` y \`config_scope\` apuntan al repo esperado antes de mutar estado.
-6. Ejecuta \`./init.sh\`.
-7. Lee solo los archivos mínimos que falten para el caso actual.
-8. Aplica el flujo definido en \`AGENTS.md\`.
+3. Si existe \`.harness/progress/head_<feature>.md\`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Si la tool no existe en la sesión, usa \`arufheim-harness status --brief-minimal --json\` como fallback operativo y confirma \`repo_path\`.
+5. Si acabas de cambiar bindings repo-scoped, reabre el repo o inicia una sesión nueva para que Codex recargue \`.codex/config.toml\`.
+6. Verifica que \`repo_path\` y \`config_scope\` apuntan al repo esperado antes de mutar estado.
+7. Ejecuta \`./init.sh\`.
+8. Lee solo los archivos mínimos que falten para el caso actual.
+9. Aplica el flujo definido en \`AGENTS.md\`.
 
 Si necesitas estimar costo local del startup, loop o triage sin tocar métricas reales, usa \`arufheim-harness simulate --flow <startup|activation|loop|triage> --json\`.
 
@@ -1931,6 +2007,7 @@ Si necesitas estimar costo local del startup, loop o triage sin tocar métricas 
 - \`leader\` controla \`plan -> execute -> verify -> review -> analyze -> route_back\`.
 - Si \`verify\` o \`review\` fallan, el route-back es automático dentro de budgets; el humano entra solo en gates existentes o bloqueos reales.
 - No repitas un retry equivalente sin \`strategy_delta\`.
+- Usa \`unit\`, \`contract\` o \`smoke\` según el tipo de cambio; no fuerces TDD fuerte cuando el diseño aún no está claro.
 
 ## Cierre
 
@@ -1959,9 +2036,10 @@ No narres pasos internos. Muestra resultado, no proceso.
 
 1. Llama \`mcp_arufheim-harness_harness_status\` con \`mode: "brief_minimal"\` y usa \`startup_brief\` como snapshot inicial.
 2. Si hay feature activa, llama \`mcp_arufheim-harness_harness_loop_status\`.
-3. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
-4. Lee solo los archivos mínimos que falten para el caso actual.
-5. Aplica el flujo definido en \`.github/prompts/leader.prompt.md\`.
+3. Si existe \`.harness/progress/head_<feature>.md\`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
+5. Lee solo los archivos mínimos que falten para el caso actual.
+6. Aplica el flujo definido en \`.github/prompts/leader.prompt.md\`.
 `;
 
 const SCAFFOLD_CLAUDE_COMMAND_TEMPLATE = `# Harness
@@ -1970,11 +2048,12 @@ const SCAFFOLD_CLAUDE_COMMAND_TEMPLATE = `# Harness
 
 1. Llama \`harness_status\` con \`mode: "brief_minimal"\` y usa \`startup_brief\` como snapshot inicial.
 2. Si hay feature activa, llama \`harness_loop_status\` y resume fase, intento y budget restante.
-3. Si la tool no cargó, usa \`arufheim-harness status --brief-minimal --json\` como fallback y confirma \`repo_path\`.
-4. Si acabas de cambiar bindings o de abrir el repo, recarga el cliente y vuelve a intentar \`harness_status\` antes de mutar estado.
-5. Si hay archivos nuevos en \`{{inboxDir}}/\`, procésalos antes del flujo normal.
-6. Lee solo los archivos mínimos que falten para el caso actual.
-7. Lee \`.harness-docs/verification.md\`.
+3. Si existe \`.harness/progress/head_<feature>.md\`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Si la tool no cargó, usa \`arufheim-harness status --brief-minimal --json\` como fallback y confirma \`repo_path\`.
+5. Si acabas de cambiar bindings o de abrir el repo, recarga el cliente y vuelve a intentar \`harness_status\` antes de mutar estado.
+6. Si hay archivos nuevos en \`{{inboxDir}}/\`, procésalos antes del flujo normal.
+7. Lee solo los archivos mínimos que falten para el caso actual.
+8. Lee \`.harness-docs/verification.md\`.
 
 Si necesitas estimar costo local del startup, loop o triage sin tocar métricas reales, usa \`arufheim-harness simulate --flow <startup|activation|loop|triage> --json\`.
 
@@ -2041,6 +2120,7 @@ Mapa operativo del repo.
 - \`{{featureHistoryPath}}\`: contexto histórico
 - \`{{historyPath}}\`: sesiones anteriores
 - \`.harness/metrics/loops/\`: estado vivo y trazabilidad del loop por feature
+- \`.harness/progress/head_<feature>.md\`: resumen corto del intento activo
 - \`specs/<feature>/\`: implementación SDD
 - \`.harness-docs/architecture.md\`: diseño
 - \`.harness-docs/conventions.md\`: edición/código
@@ -2057,6 +2137,7 @@ Mapa operativo del repo.
 - Toda feature con \`"sdd": true\` pasa por \`pending -> spec_ready -> aprobación humana -> in_progress -> done\`.
 - Dentro de \`in_progress\`, el trabajo sigue \`plan -> execute -> verify -> review -> analyze -> route_back -> done|blocked\`.
 - Todo retry requiere \`strategy_delta\` explícito.
+- Toda requirement observable usa la capa de feedback más útil: \`unit\`, \`contract\` o \`smoke\`, o deja excepción justificada.
 - Antes de declarar \`done\`, corre la verificación relevante del repo y actualiza README/docs si cambió el uso o comportamiento visible.
 - Si el cambio es release-facing, actualiza \`CHANGELOG.md\` o deja constancia explícita de por qué no aplica.
 - No inventes estado: actualiza \`{{currentPath}}\`.
@@ -2084,7 +2165,7 @@ in_progress -> leader(plan) -> implementer(execute) -> verify -> reviewer(review
 5. Si la feature quedó \`done\`, actualiza backlog activo y archívala en \`{{featureHistoryPath}}\`
 6. Si la sesión dejó cambios o decisiones útiles, añade resumen a \`{{historyPath}}\`
 7. Limpia \`{{currentPath}}\`
-8. Conserva \`explore_*.md\`, \`impl_*.md\`, \`review_*.md\`, \`spec_*.md\`
+8. Conserva \`explore_*.md\`, \`impl_*.md\`, \`review_*.md\`, \`spec_*.md\`, \`head_*.md\`
 `;
 
 const AGENTS_MANAGED_SECTION_TEMPLATE = `${AGENTS_MANAGED_START_MARKER}
@@ -2110,6 +2191,7 @@ Este bloque lo mantiene el arnés. Puedes agregar instrucciones del repo fuera d
 - Toda feature con \`"sdd": true\` pasa por \`pending -> spec_ready -> aprobación humana -> in_progress -> done\`.
 - Dentro de \`in_progress\`, el trabajo sigue \`plan -> execute -> verify -> review -> analyze -> route_back -> done|blocked\`.
 - Todo retry requiere \`strategy_delta\` explícito.
+- Toda requirement observable usa la capa de feedback más útil: \`unit\`, \`contract\` o \`smoke\`, o deja excepción justificada.
 - Antes de declarar \`done\`, corre la verificación relevante del repo y actualiza README/docs si cambió el uso o comportamiento visible.
 - Si el cambio es release-facing, actualiza \`CHANGELOG.md\` o deja constancia explícita de por qué no aplica.
 - No inventes estado: actualiza \`{{currentPath}}\`.
@@ -2121,6 +2203,7 @@ Este bloque lo mantiene el arnés. Puedes agregar instrucciones del repo fuera d
 - \`{{featureHistoryPath}}\`: contexto histórico
 - \`{{historyPath}}\`: sesiones anteriores
 - \`.harness/metrics/loops/\`: estado vivo y trazabilidad del loop por feature
+- \`.harness/progress/head_<feature>.md\`: resumen corto del intento activo
 - \`specs/<feature>/\`: implementación SDD
 - \`CHECKPOINTS.md\`: auto-review
 - \`{{inboxDir}}/\`: input nuevo
@@ -2135,6 +2218,7 @@ Este bloque lo mantiene el arnés. Puedes agregar instrucciones del repo fuera d
 5. Si la feature quedó \`done\`, actualiza backlog activo y archívala en \`{{featureHistoryPath}}\`
 6. Si la sesión dejó cambios o decisiones útiles, añade resumen a \`{{historyPath}}\`
 7. Limpia \`{{currentPath}}\`
+8. Conserva \`explore_*.md\`, \`impl_*.md\`, \`review_*.md\`, \`spec_*.md\`, \`head_*.md\`
 ${AGENTS_MANAGED_END_MARKER}`;
 
 const SCAFFOLD_AGENTS_MD_TEMPLATE = `# AGENTS.md
@@ -2142,6 +2226,88 @@ const SCAFFOLD_AGENTS_MD_TEMPLATE = `# AGENTS.md
 Mapa operativo del repo.
 
 ${AGENTS_MANAGED_SECTION_TEMPLATE}
+`;
+
+const THIN_AGENTS_MANAGED_SECTION_TEMPLATE = `${AGENTS_MANAGED_START_MARKER}
+${AGENTS_VERSION_MARKER}
+
+## Harness Runtime (managed)
+
+### Arranque
+
+1. Ejecuta \`arufheim-harness verify --repo-path .\`.
+2. Lee \`{{currentPath}}\` y \`{{featureListPath}}\`.
+3. Si la feature activa tiene \`"sdd": true\`, trabaja desde \`specs/<feature>/\`.
+4. Si necesitas contrato compartido, usa \`arufheim-harness docs show specs\`, \`verification\`, \`architecture\`, \`conventions\` o \`loop_contract\`.
+
+### Reglas duras
+
+- No cierres nada sin \`arufheim-harness verify --repo-path .\` verde.
+- Mantén una sola feature \`in_progress\`.
+- Estado vivo: \`{{featureListPath}}\`, \`{{featureHistoryPath}}\`, \`{{currentPath}}\`, \`{{historyPath}}\`, \`{{inboxDir}}/\`.
+- Conserva \`specs/\` y \`.harness/progress/\` como artifacts locales del repo.
+${AGENTS_MANAGED_END_MARKER}`;
+
+const THIN_AGENTS_MD_TEMPLATE = `# AGENTS.md
+
+Mapa operativo mínimo del repo.
+
+Este layout \`thin\` es el recomendado para repos consumidores: mantiene el estado local del workflow y reduce ruido visible en el árbol del proyecto.
+
+${THIN_AGENTS_MANAGED_SECTION_TEMPLATE}
+`;
+
+const THIN_CODEX_MD_TEMPLATE = `# CODEX.md
+
+Guía mínima para este repo en layout \`thin\`.
+
+Usa este layout como camino normal en repos consumidores; \`full\` queda para materialización local completa o debugging del scaffold.
+
+## Arranque
+
+1. Ejecuta \`arufheim-harness verify --repo-path .\`.
+2. Lee \`AGENTS.md\` como contrato local del repo.
+3. Llama \`harness_status\` con \`mode: "brief_minimal"\`.
+4. Si necesitas contrato compartido del harness, usa \`arufheim-harness docs show verification\` o \`arufheim-harness docs show specs\`.
+
+## Comunicación
+
+- Responde con resultado, evidencia y siguiente paso.
+- Si cambias comandos, flujo o surface pública, alinea README y CHANGELOG.
+- Si la feature activa es SDD, trabaja desde \`specs/<feature>/\` y conserva la traza en \`.harness/progress/\`.
+`;
+
+const THIN_CLAUDE_MD_TEMPLATE = `# CLAUDE.md
+
+Guía mínima para este repo en layout \`thin\`.
+
+Usa este layout como camino normal en repos consumidores; \`full\` queda para materialización local completa o debugging del scaffold.
+
+## Arranque
+
+1. Ejecuta \`arufheim-harness verify --repo-path .\`.
+2. Lee \`AGENTS.md\` como contrato local del repo.
+3. Usa \`harness_status\` como snapshot de arranque.
+4. Consulta docs compartidas con \`arufheim-harness docs show <topic>\` cuando necesites contexto del harness.
+
+## Comunicación
+
+- Entrega resultados concretos y evidencia verificable.
+- Si cambias onboarding, comandos o comportamiento visible, actualiza README y la documentación pertinente.
+- Para features SDD, usa \`specs/<feature>/\` y conserva artifacts en \`.harness/progress/\`.
+`;
+
+const THIN_COPILOT_INSTRUCTIONS_TEMPLATE = `# Copilot Instructions
+
+## Arranque
+
+- Ejecuta \`arufheim-harness verify --repo-path .\` antes de cerrar trabajo.
+- Usa \`harness_status\` para el snapshot de arranque y \`arufheim-harness docs show verification\` si necesitas el contrato operativo.
+
+## Comunicación
+
+- Prioriza cambios pequeños, verificables y alineados con README/CHANGELOG cuando aplique.
+- Si la feature activa es SDD, trabaja desde \`specs/<feature>/\` y deja evidencia en \`.harness/progress/\`.
 `;
 
 const SCAFFOLD_REPO_INIT_SH = `#!/usr/bin/env bash
@@ -2152,17 +2318,22 @@ if [[ -n "\${ARUFHEIM_HARNESS_ENTRY:-}" ]]; then
   exit $?
 fi
 
+HARNESS_GLOBAL_ROOT="\${XDG_CONFIG_HOME:-$HOME/.config}/arufheim-harness"
+HARNESS_GLOBAL_SHIM="$HARNESS_GLOBAL_ROOT/bin/arufheim-harness"
+
+if [[ -x "$HARNESS_GLOBAL_SHIM" ]]; then
+  "$HARNESS_GLOBAL_SHIM" doctor --repo-path .
+  exit $?
+fi
+
 if command -v arufheim-harness >/dev/null 2>&1; then
   arufheim-harness doctor --repo-path .
   exit $?
 fi
 
-if command -v npx >/dev/null 2>&1; then
-  npx --yes arufheim-harness doctor --repo-path .
-  exit $?
-fi
-
-echo "[FAIL] arufheim-harness no está disponible en PATH y npx tampoco existe." >&2
+echo "[FAIL] arufheim-harness no está disponible localmente." >&2
+echo "Usa ARUFHEIM_HARNESS_ENTRY=/ruta/al/index.js, repara el runtime global con \`arufheim-harness repair --global-runtime\` o expón arufheim-harness en PATH." >&2
+echo "Este scaffold no intenta descargar el harness vía npx." >&2
 exit 1
 `;
 
@@ -2188,7 +2359,7 @@ tools:
   - mcp_arufheim-harness_mem_search
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Agente Líder
 
@@ -2198,9 +2369,10 @@ Orquestas. No implementas código.
 
 1. Llama \`mcp_arufheim-harness_harness_status\` con \`mode: "brief_minimal"\` y usa \`startup_brief\` como snapshot inicial.
 2. Si hay feature activa, llama \`mcp_arufheim-harness_harness_loop_status\`.
-3. Llama \`mcp_arufheim-harness_mem_context\`.
-4. Si falta contexto, lee solo lo mínimo.
-5. Si hay input nuevo en \`{{inboxDir}}/\`, considera \`inbox_reader\`.
+3. Si existe \`head_<feature>.md\`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Llama \`mcp_arufheim-harness_mem_context\`.
+5. Si falta contexto, lee solo lo mínimo.
+6. Si hay input nuevo en \`{{inboxDir}}/\`, considera \`inbox_reader\`.
 
 ## Flujo SDD
 
@@ -2248,7 +2420,7 @@ tools:
   - mcp_arufheim-harness_mem_search
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Agente Implementador
 
@@ -2267,35 +2439,43 @@ Implementas exactamente una feature aprobada desde \`specs/<name>/\`.
 - No inventas requirements ni decisiones fuera del spec aprobado.
 - No reviertes cambios ajenos.
 - No marcas una task \`[x]\` hasta verificarla.
-- Toda requirement observable \`R<n>\` debe quedar cubierta por test automatizado concreto.
+- Para cada requirement observable, elige la capa de feedback más útil: \`unit\`, \`contract\` o \`smoke\`.
+- Si una requirement observable no deja test automatizado razonable, documenta la excepción y la verificación ejecutable.
 - Si una task no puede completarse sin desviarte del spec, paras y reportas.
 
 ## Protocolo
 
 1. Llama \`mcp_arufheim-harness_harness_status\` con \`mode: "brief_minimal"\`.
 2. Llama \`mcp_arufheim-harness_harness_loop_status\` para conocer \`Attempt N\`, \`strategy_delta\` previo y budget restante.
-3. Lee \`.harness-docs/architecture.md\`, \`.harness-docs/conventions.md\`, \`.harness-docs/specs.md\`, \`.harness-docs/verification.md\`.
-4. Lee \`specs/<name>/spec_summary.md\` primero.
-5. Lee \`requirements.md\` y \`tasks.md\`; abre \`design.md\` solo si hace falta.
-6. Actualiza \`{{currentPath}}\`.
-7. Ejecuta \`tasks.md\` en orden.
+3. Lee \`.harness/progress/head_<name>.md\` si existe.
+4. Lee \`.harness-docs/architecture.md\`, \`.harness-docs/conventions.md\`, \`.harness-docs/specs.md\`, \`.harness-docs/verification.md\`.
+5. Lee \`specs/<name>/spec_summary.md\` primero.
+6. Lee \`requirements.md\` y \`tasks.md\`; abre \`design.md\` solo si hace falta.
+7. Actualiza \`{{currentPath}}\`.
+8. Ejecuta \`tasks.md\` en orden.
 
 Para cada task \`T<n>\`:
 
 1. Implementa el cambio pedido.
-2. Añade o ajusta test si cambia comportamiento observable.
-3. Si cambia el uso o comportamiento visible, actualiza README/docs o documenta por qué no aplica.
-4. Si el cambio es release-facing, actualiza \`CHANGELOG.md\` o documenta por qué no aplica.
-5. Si no corresponde test, documenta verificación y motivo.
-6. Corre la verificación mínima relevante.
-7. Marca \`[x] T<n>\`.
-8. Actualiza \`## Bitácora\` y \`## Próximo paso\`.
+2. Si el contrato ya está claro y el repo ya declara una suite rápida razonable, usa el primer comando real más útil para el cambio.
+3. No hagas preflight de versiones o binarios como \`pnpm --version\` o \`vitest --version\` salvo que falle el primer comando real o estés tocando tooling/testing.
+4. Añade o ajusta test si cambia comportamiento observable.
+5. Si cambia el uso o comportamiento visible, actualiza README/docs o documenta por qué no aplica.
+6. Si el cambio es release-facing, actualiza \`CHANGELOG.md\` o documenta por qué no aplica.
+7. Si no corresponde test rápido, documenta verificación y motivo.
+8. Corre la verificación mínima relevante.
+9. Marca \`[x] T<n>\`.
+10. Actualiza \`## Bitácora\` y \`## Próximo paso\`.
 
 ## Artifact del intento
 
 Append a \`.harness/progress/impl_<name>.md\` con:
 
+- \`## Test Plan\`
 - \`## Attempt N\`
+- \`## Red -> Green Evidence\`
+- \`## Verification\`
+- \`## Exception Justification\` cuando aplique
 - hipótesis
 - cambios
 - checks ejecutados
@@ -2322,7 +2502,7 @@ tools:
   - mcp_arufheim-harness_mem_context
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Agente Revisor
 
@@ -2332,19 +2512,20 @@ Apruebas o rechazas. No editas código ni mueves estados.
 
 1. Llama \`mcp_arufheim-harness_harness_status\` con \`mode: "brief_minimal"\`.
 2. Llama \`mcp_arufheim-harness_harness_loop_status\` para conocer \`Review N\`, \`Attempt N\` y budgets restantes.
-3. Lee \`.harness-docs/architecture.md\`, \`.harness-docs/conventions.md\`, \`.harness-docs/specs.md\`, \`.harness-docs/verification.md\` y \`CHECKPOINTS.md\`.
-4. Lee \`specs/<name>/spec_summary.md\` primero.
-5. Abre \`requirements.md\` y \`tasks.md\`; abre \`design.md\` solo si hace falta.
-6. Lee \`.harness/progress/impl_<name>.md\`.
-7. Por cada \`R<n>\`, exige test automatizado concreto o excepción justificada con verificación ejecutable.
-8. Comprueba que todas las tasks de \`tasks.md\` estén \`[x]\`, salvo justificación válida.
-9. Revisa los archivos modificados contra \`.harness-docs/architecture.md\` y
+3. Lee \`.harness/progress/head_<name>.md\` si existe.
+4. Lee \`.harness-docs/architecture.md\`, \`.harness-docs/conventions.md\`, \`.harness-docs/specs.md\`, \`.harness-docs/verification.md\` y \`CHECKPOINTS.md\`.
+5. Lee \`specs/<name>/spec_summary.md\` primero.
+6. Abre \`requirements.md\` y \`tasks.md\`; abre \`design.md\` solo si hace falta.
+7. Lee \`.harness/progress/impl_<name>.md\`.
+8. Por cada \`R<n>\`, exige la capa correcta de feedback (\`unit\`, \`contract\`, \`smoke\`) o excepción justificada con verificación ejecutable.
+9. Comprueba que todas las tasks de \`tasks.md\` estén \`[x]\`, salvo justificación válida.
+10. Revisa los archivos modificados contra \`.harness-docs/architecture.md\` y
    \`.harness-docs/conventions.md\`.
-10. Si cambió el uso o comportamiento visible, exige README/docs actualizados o justificación explícita de no aplicación.
-11. Si el cambio es release-facing, exige \`CHANGELOG.md\` actualizado o justificación explícita de no aplicación.
-12. Corre la verificación estándar del repo.
-13. Recorre \`CHECKPOINTS.md\` y registra cuáles se cumplen.
-14. Emite veredicto y clasifica el rechazo si aplica.
+11. Si cambió el uso o comportamiento visible, exige README/docs actualizados o justificación explícita de no aplicación.
+12. Si el cambio es release-facing, exige \`CHANGELOG.md\` actualizado o justificación explícita de no aplicación.
+13. Corre la verificación estándar del repo.
+14. Recorre \`CHECKPOINTS.md\` y registra cuáles se cumplen.
+15. Emite veredicto y clasifica el rechazo si aplica.
 
 ## Artifact del review
 
@@ -2353,6 +2534,7 @@ Append a \`.harness/progress/review_<name>.md\` con:
 - \`## Review N\`
 - veredicto \`APPROVED\` o \`CHANGES_REQUESTED\`
 - clasificación \`verification_failed | review_rejected | tool_failure | context_gap | external_blocker\`
+- capa de feedback usada por cada requirement observable o excepción justificada
 `;
 
 const SCAFFOLD_SPEC_AUTHOR_PROMPT_TEMPLATE = `---
@@ -2368,7 +2550,7 @@ tools:
   - mcp_arufheim-harness_mem_context
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Agente Spec Author
 
@@ -2414,7 +2596,7 @@ tools:
   - mcp_arufheim-harness_inbox_consume
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Inbox Reader
 
@@ -2446,7 +2628,7 @@ tools:
   - mcp_arufheim-harness_harness_status
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 # Scoper
 
@@ -2513,9 +2695,23 @@ function inboxReadmePathFor(workflowPaths: WorkflowPaths): string {
   return path.posix.join(workflowPaths.inboxDir, "README.md");
 }
 
+function defaultTemplateTestingContext(): TemplateTestingContext {
+  return {
+    fastCommand: "no detectado",
+    integrationCommand: "usa la verificación estándar del repo",
+    fastLine:
+      "No se detectó comando rápido; no inventes preflight y usa la suite nativa del stack solo si el cambio realmente lo necesita, o configúralo en harness.config.json.",
+    integrationLine:
+      "Si necesitas cierre de integración, usa `verify` si existe o la verificación estándar relevante del repo.",
+    fallbackLine:
+      "Si el repo necesita suite rápida y es JS/TS, considera Vitest; fuera de JS/TS usa la suite rápida nativa del stack solo cuando aplique.",
+  };
+}
+
 function renderWorkflowTemplate(
   template: string,
   workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext = defaultTemplateTestingContext(),
 ): string {
   const replacements: Array<[string, string]> = [
     ["{{featureListPath}}", workflowPaths.featureListPath],
@@ -2526,6 +2722,11 @@ function renderWorkflowTemplate(
     ["{{inboxDir}}", workflowPaths.inboxDir],
     ["{{inboxProcessedDir}}", workflowPaths.inboxProcessedDir],
     ["{{inboxReadmePath}}", inboxReadmePathFor(workflowPaths)],
+    ["{{testingFastCommand}}", testingContext.fastCommand],
+    ["{{testingIntegrationCommand}}", testingContext.integrationCommand],
+    ["{{testingFastLine}}", testingContext.fastLine],
+    ["{{testingIntegrationLine}}", testingContext.integrationLine],
+    ["{{testingFallbackLine}}", testingContext.fallbackLine],
   ];
 
   let rendered = template;
@@ -2537,41 +2738,80 @@ function renderWorkflowTemplate(
 
 export function renderManagedAgentsSection(
   workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext = defaultTemplateTestingContext(),
 ): string {
-  return renderWorkflowTemplate(AGENTS_MANAGED_SECTION_TEMPLATE, workflowPaths);
+  return renderWorkflowTemplate(
+    AGENTS_MANAGED_SECTION_TEMPLATE,
+    workflowPaths,
+    testingContext,
+  );
 }
 
-function renderAgentsFile(workflowPaths: WorkflowPaths): string {
+function renderThinManagedAgentsSection(
+  workflowPaths: WorkflowPaths,
+): string {
+  return renderWorkflowTemplate(
+    THIN_AGENTS_MANAGED_SECTION_TEMPLATE,
+    workflowPaths,
+  );
+}
+
+function renderAgentsFile(
+  workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext,
+): string {
   return (
-    renderWorkflowTemplate(SCAFFOLD_AGENTS_MD_TEMPLATE, workflowPaths).trimEnd() +
+    renderWorkflowTemplate(
+      SCAFFOLD_AGENTS_MD_TEMPLATE,
+      workflowPaths,
+      testingContext,
+    ).trimEnd() +
     "\n"
   );
 }
 
+function renderThinAgentsFile(workflowPaths: WorkflowPaths): string {
+  return renderWorkflowTemplate(
+    THIN_AGENTS_MD_TEMPLATE,
+    workflowPaths,
+  ).trimEnd() + "\n";
+}
+
 function scaffoldGithubPrompts(
   workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext,
 ): Array<[string, string]> {
   return [
     [
       "leader.prompt.md",
-      renderWorkflowTemplate(SCAFFOLD_LEADER_PROMPT_TEMPLATE, workflowPaths),
+      renderWorkflowTemplate(
+        SCAFFOLD_LEADER_PROMPT_TEMPLATE,
+        workflowPaths,
+        testingContext,
+      ),
     ],
     [
       "implementer.prompt.md",
       renderWorkflowTemplate(
         SCAFFOLD_IMPLEMENTER_PROMPT_TEMPLATE,
         workflowPaths,
+        testingContext,
       ),
     ],
     [
       "reviewer.prompt.md",
-      renderWorkflowTemplate(SCAFFOLD_REVIEWER_PROMPT_TEMPLATE, workflowPaths),
+      renderWorkflowTemplate(
+        SCAFFOLD_REVIEWER_PROMPT_TEMPLATE,
+        workflowPaths,
+        testingContext,
+      ),
     ],
     [
       "spec_author.prompt.md",
       renderWorkflowTemplate(
         SCAFFOLD_SPEC_AUTHOR_PROMPT_TEMPLATE,
         workflowPaths,
+        testingContext,
       ),
     ],
     [
@@ -2579,11 +2819,16 @@ function scaffoldGithubPrompts(
       renderWorkflowTemplate(
         SCAFFOLD_INBOX_READER_PROMPT_TEMPLATE,
         workflowPaths,
+        testingContext,
       ),
     ],
     [
       "scoper.prompt.md",
-      renderWorkflowTemplate(SCAFFOLD_SCOPER_PROMPT_TEMPLATE, workflowPaths),
+      renderWorkflowTemplate(
+        SCAFFOLD_SCOPER_PROMPT_TEMPLATE,
+        workflowPaths,
+        testingContext,
+      ),
     ],
   ];
 }
@@ -2596,31 +2841,38 @@ function promptBody(renderedPrompt: string): string {
 
 function scaffoldClaudeAgents(
   workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext,
 ): Array<[string, string]> {
   const prompts = {
     leader: renderWorkflowTemplate(
       SCAFFOLD_LEADER_PROMPT_TEMPLATE,
       workflowPaths,
+      testingContext,
     ),
     implementer: renderWorkflowTemplate(
       SCAFFOLD_IMPLEMENTER_PROMPT_TEMPLATE,
       workflowPaths,
+      testingContext,
     ),
     reviewer: renderWorkflowTemplate(
       SCAFFOLD_REVIEWER_PROMPT_TEMPLATE,
       workflowPaths,
+      testingContext,
     ),
     specAuthor: renderWorkflowTemplate(
       SCAFFOLD_SPEC_AUTHOR_PROMPT_TEMPLATE,
       workflowPaths,
+      testingContext,
     ),
     inboxReader: renderWorkflowTemplate(
       SCAFFOLD_INBOX_READER_PROMPT_TEMPLATE,
       workflowPaths,
+      testingContext,
     ),
     scoper: renderWorkflowTemplate(
       SCAFFOLD_SCOPER_PROMPT_TEMPLATE,
       workflowPaths,
+      testingContext,
     ),
   };
 
@@ -2633,7 +2885,7 @@ description: Orquestador. Coordina el flujo SDD del repo y delega el trabajo. NU
 tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ${promptBody(prompts.leader)}`,
     ],
@@ -2645,7 +2897,7 @@ description: Trabajador. Implementa una sola feature según su spec aprobado. Es
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ${promptBody(prompts.implementer)}`,
     ],
@@ -2657,7 +2909,7 @@ description: Revisor automático. Aprueba o rechaza el trabajo del implementador
 tools: Read, Write, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ${promptBody(prompts.reviewer)}`,
     ],
@@ -2669,7 +2921,7 @@ description: Redacta specs Kiro-style (requirements/design/tasks) para una featu
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ${promptBody(prompts.specAuthor)}`,
     ],
@@ -2681,7 +2933,7 @@ description: Procesa archivos de requerimientos en .harness/inbox/ y los convier
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ${promptBody(prompts.inboxReader)}`,
     ],
@@ -2693,11 +2945,142 @@ description: Filtra .harness/feature_list.json por proyecto/scope y define qué 
 tools: Read, Write, Edit, Glob, Grep
 ---
 
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ${promptBody(prompts.scoper)}`,
     ],
   ];
+}
+
+export async function resolveTemplateTestingContext(
+  repoPath: string,
+): Promise<TemplateTestingContext> {
+  const configAbs = path.join(repoPath, harness_CONFIG_NAME);
+  let explicitTesting: { fastCommand?: string; integrationCommand?: string } | undefined;
+  try {
+    const rawConfig = await readFile(configAbs, "utf8");
+    const config = JSON.parse(rawConfig) as Record<string, unknown>;
+    explicitTesting =
+      typeof config.testing === "object" && config.testing !== null
+        ? {
+            fastCommand:
+              typeof (config.testing as Record<string, unknown>).fastCommand ===
+              "string"
+                ? ((config.testing as Record<string, unknown>).fastCommand as string)
+                : undefined,
+            integrationCommand:
+              typeof (config.testing as Record<string, unknown>)
+                .integrationCommand === "string"
+                ? ((config.testing as Record<string, unknown>)
+                    .integrationCommand as string)
+                : undefined,
+          }
+        : undefined;
+  } catch {
+    explicitTesting = undefined;
+  }
+
+  return buildTestingTemplateContext(
+    await resolveRepoTestingGuidance(repoPath, explicitTesting),
+  );
+}
+
+export function renderFullSharedAssetFiles(
+  workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext,
+): Record<string, string> {
+  const githubPrompts = Object.fromEntries(
+    scaffoldGithubPrompts(workflowPaths, testingContext).map(
+      ([filename, content]) => [`${GITHUB_PROMPTS_DIR}/${filename}`, content],
+    ),
+  );
+  const claudeAgents = Object.fromEntries(
+    scaffoldClaudeAgents(workflowPaths, testingContext).map(
+      ([filename, content]) => [`${CLAUDE_AGENTS_DIR}/${filename}`, content],
+    ),
+  );
+
+  return {
+    [DOCS_ARCHITECTURE_PATH]: SCAFFOLD_ARCHITECTURE_DOC_CONTENT,
+    [DOCS_CONVENTIONS_PATH]: SCAFFOLD_CONVENTIONS_DOC_CONTENT,
+    [DOCS_SPECS_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_SPECS_DOC_CONTENT,
+      workflowPaths,
+      testingContext,
+    ),
+    [DOCS_SPECS_POLICY_PATH]: SCAFFOLD_SPECS_POLICY_DOC_CONTENT,
+    [DOCS_VERIFICATION_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_VERIFICATION_DOC_CONTENT,
+      workflowPaths,
+      testingContext,
+    ),
+    [DOCS_MODEL_INTERFACE_PATH]: SCAFFOLD_MODEL_INTERFACE_DOC_CONTENT,
+    [DOCS_CONTEXT_MANAGER_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_CONTEXT_MANAGER_DOC_CONTENT,
+      workflowPaths,
+      testingContext,
+    ),
+    [DOCS_EXECUTION_ENGINE_PATH]: SCAFFOLD_EXECUTION_ENGINE_DOC_CONTENT,
+    [DOCS_MEMORY_SYSTEM_PATH]: SCAFFOLD_MEMORY_SYSTEM_DOC_CONTENT,
+    [DOCS_ORCHESTRATION_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_ORCHESTRATION_DOC_CONTENT,
+      workflowPaths,
+      testingContext,
+    ),
+    [DOCS_TOOL_CATALOG_PATH]: SCAFFOLD_TOOL_CATALOG_DOC_CONTENT,
+    [DOCS_OBSERVATION_POLICY_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_OBSERVATION_POLICY_DOC_CONTENT,
+      workflowPaths,
+      testingContext,
+    ),
+    [DOCS_LOOP_CONTRACT_PATH]: SCAFFOLD_LOOP_CONTRACT_DOC_CONTENT,
+    [DOCS_PLANNING_MODEL_PATH]: SCAFFOLD_PLANNING_MODEL_DOC_CONTENT,
+    [DOCS_BUDGETS_PATH]: SCAFFOLD_BUDGETS_DOC_CONTENT,
+    [DOCS_CONTRACT_VERSIONS_PATH]: SCAFFOLD_CONTRACT_VERSIONS_DOC_CONTENT,
+    [DOCS_FRONTEND_ADAPTERS_PATH]: SCAFFOLD_FRONTEND_ADAPTERS_DOC_CONTENT,
+    [CHECKPOINTS_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_CHECKPOINTS_CONTENT,
+      workflowPaths,
+      testingContext,
+    ),
+    [REPO_INIT_SCRIPT_PATH]: SCAFFOLD_REPO_INIT_SH,
+    [CLAUDE_COMMAND_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_CLAUDE_COMMAND_TEMPLATE,
+      workflowPaths,
+      testingContext,
+    ),
+    [OPENCODE_COMMAND_PATH]: renderWorkflowTemplate(
+      SCAFFOLD_OPENCODE_COMMAND_TEMPLATE,
+      workflowPaths,
+      testingContext,
+    ),
+    ...githubPrompts,
+    ...claudeAgents,
+  };
+}
+
+export function renderThinLocalWrapperFiles(
+  workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext,
+): Record<string, string> {
+  return {
+    [AGENTS_MD_PATH]: renderThinAgentsFile(workflowPaths),
+    [CODEX_MD_PATH]: renderWorkflowTemplate(
+      THIN_CODEX_MD_TEMPLATE,
+      workflowPaths,
+      testingContext,
+    ),
+    [CLAUDE_MD_PATH]: renderWorkflowTemplate(
+      THIN_CLAUDE_MD_TEMPLATE,
+      workflowPaths,
+      testingContext,
+    ),
+    [COPILOT_INSTRUCTIONS_PATH]: renderWorkflowTemplate(
+      THIN_COPILOT_INSTRUCTIONS_TEMPLATE,
+      workflowPaths,
+      testingContext,
+    ),
+  };
 }
 
 // ─── Rutas de config global por cliente MCP ──────────────────────────────────
@@ -2892,33 +3275,33 @@ async function readOptionalCodexGlobalConfig(filePath: string): Promise<string> 
 
 // ─── Escritura a cada cliente ─────────────────────────────────────────────────
 
-const VSCODE_GLOBAL_HARNESS_SERVER_ENTRY = {
-  type: "stdio",
-  command: "npx",
-  args: [
-    "arufheim-harness",
-    "--repo-path",
-    "${workspaceFolder}",
-    "--client",
-    "vscode",
-  ],
-};
+function buildVSCodeGlobalHarnessServerEntry(): Record<string, unknown> {
+  return {
+    type: "stdio",
+    command: getManagedGlobalRuntimeShimPath(),
+    args: ["--repo-path", "${workspaceFolder}", "--client", "vscode"],
+  };
+}
 
-const CLAUDE_DESKTOP_GLOBAL_HARNESS_SERVER_ENTRY = {
-  command: "npx",
-  args: ["arufheim-harness", "--repo-path", ".", "--client", "claude-desktop"],
-};
+function buildClaudeDesktopGlobalHarnessServerEntry(): Record<string, unknown> {
+  return {
+    command: getManagedGlobalRuntimeShimPath(),
+    args: ["--repo-path", ".", "--client", "claude-desktop"],
+  };
+}
 
-const CLAUDE_CODE_GLOBAL_HARNESS_SERVER_ENTRY = {
-  command: "npx",
-  args: ["arufheim-harness", "--repo-path", ".", "--client", "claude-code"],
-};
+function buildClaudeCodeGlobalHarnessServerEntry(): Record<string, unknown> {
+  return {
+    command: getManagedGlobalRuntimeShimPath(),
+    args: ["--repo-path", ".", "--client", "claude-code"],
+  };
+}
 
 function renderCodexGlobalMcpBlock(): string {
   return [
     "[mcp_servers.arufheim-harness]",
-    'command = "npx"',
-    'args = ["--yes", "arufheim-harness", "--repo-path", ".", "--client", "codex"]',
+    `command = ${JSON.stringify(getManagedGlobalRuntimeShimPath())}`,
+    'args = ["--repo-path", ".", "--client", "codex"]',
     'cwd = "."',
     "",
   ].join("\n");
@@ -3061,7 +3444,7 @@ async function addToVSCodeGlobal(
     return;
   }
 
-  servers["arufheim-harness"] = VSCODE_GLOBAL_HARNESS_SERVER_ENTRY;
+  servers["arufheim-harness"] = buildVSCodeGlobalHarnessServerEntry();
   config["servers"] = servers;
 
   await mkdir(path.dirname(mcpPath), { recursive: true });
@@ -3091,7 +3474,8 @@ async function addToClaudeDesktop(
     return;
   }
 
-  mcpServers["arufheim-harness"] = CLAUDE_DESKTOP_GLOBAL_HARNESS_SERVER_ENTRY;
+  mcpServers["arufheim-harness"] =
+    buildClaudeDesktopGlobalHarnessServerEntry();
   config["mcpServers"] = mcpServers;
 
   await mkdir(path.dirname(cfgPath), { recursive: true });
@@ -3119,7 +3503,7 @@ async function addToClaudeCode(
     return;
   }
 
-  mcpServers["arufheim-harness"] = CLAUDE_CODE_GLOBAL_HARNESS_SERVER_ENTRY;
+  mcpServers["arufheim-harness"] = buildClaudeCodeGlobalHarnessServerEntry();
   config["mcpServers"] = mcpServers;
 
   await mkdir(path.dirname(cfgPath), { recursive: true });
@@ -3310,12 +3694,14 @@ export async function runInitGlobalWithClients(
     return;
   }
 
+  const runtime = await ensureManagedGlobalRuntime();
   await validateGlobalClientConfigs(
     selected.map((client) => client.id),
     options,
   );
 
   console.log("");
+  console.log(`  runtime managed_global -> ${runtime.shimPath}`);
   for (const client of selected) {
     await client.fn(options);
   }
@@ -3420,6 +3806,8 @@ interface InitOptions {
   update?: boolean;
   forceManagedGlobal?: boolean;
   target?: InitTarget;
+  layout?: ScaffoldLayout;
+  ensureManagedRuntime?: boolean;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -3527,6 +3915,7 @@ function expandManagedLocalClients(target: InitTarget): string[] {
 async function reconcileManagedScaffoldClients(
   repoPath: string,
   target: InitTarget,
+  layout: ScaffoldLayout,
 ): Promise<void> {
   const configAbs = path.join(repoPath, harness_CONFIG_NAME);
 
@@ -3552,6 +3941,7 @@ async function reconcileManagedScaffoldClients(
       ...(typeof cfg.scaffold === "object" && cfg.scaffold !== null
         ? (cfg.scaffold as Record<string, unknown>)
         : {}),
+      layout,
       localClients: merged,
     };
 
@@ -3566,11 +3956,108 @@ async function reconcileManagedScaffoldClients(
 
     await writeFile(configAbs, JSON.stringify(next, null, 2) + "\n", "utf8");
     console.log(
-      `  [updated] ${harness_CONFIG_NAME} — scaffold.localClients=${merged.join(",")}`,
+      `  [updated] ${harness_CONFIG_NAME} — scaffold.layout=${layout} scaffold.localClients=${merged.join(",")}`,
     );
   } catch {
     // Si config no parsea, doctor lo señalará; setup no pisa config inválida.
   }
+}
+
+async function reconcileManagedTestingConfig(
+  repoPath: string,
+): Promise<RepoTestingGuidance> {
+  const configAbs = path.join(repoPath, harness_CONFIG_NAME);
+  let rawConfig: string;
+  try {
+    rawConfig = await readFile(configAbs, "utf8");
+  } catch {
+    return resolveRepoTestingGuidance(repoPath, undefined);
+  }
+
+  let config: Record<string, unknown>;
+  try {
+    config = JSON.parse(rawConfig) as Record<string, unknown>;
+  } catch {
+    return resolveRepoTestingGuidance(repoPath, undefined);
+  }
+
+  const explicitTesting =
+    typeof config.testing === "object" && config.testing !== null
+      ? {
+          fastCommand:
+            typeof (config.testing as Record<string, unknown>).fastCommand ===
+            "string"
+              ? ((config.testing as Record<string, unknown>).fastCommand as string)
+              : undefined,
+          integrationCommand:
+            typeof (config.testing as Record<string, unknown>)
+              .integrationCommand === "string"
+              ? ((config.testing as Record<string, unknown>)
+                  .integrationCommand as string)
+              : undefined,
+        }
+      : undefined;
+
+  const guidance = await resolveRepoTestingGuidance(repoPath, explicitTesting);
+  const currentAllowedCommands = Array.isArray(config.allowedCommands)
+    ? config.allowedCommands.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+  const mergedAllowedCommands = mergeAllowedCommands(
+    currentAllowedCommands,
+    guidance,
+  );
+
+  const currentTesting =
+    typeof config.testing === "object" && config.testing !== null
+      ? { ...(config.testing as Record<string, unknown>) }
+      : {};
+  let touched = false;
+  if (
+    !explicitTesting?.fastCommand &&
+    guidance.fastCommand &&
+    guidance.fastSource !== "fallback"
+  ) {
+    currentTesting.fastCommand = guidance.fastCommand;
+    touched = true;
+  }
+  if (
+    !explicitTesting?.integrationCommand &&
+    guidance.integrationCommand
+  ) {
+    currentTesting.integrationCommand = guidance.integrationCommand;
+    touched = true;
+  }
+
+  if (JSON.stringify(currentAllowedCommands) !== JSON.stringify(mergedAllowedCommands)) {
+    config.allowedCommands = mergedAllowedCommands;
+    touched = true;
+  }
+
+  if (Object.keys(currentTesting).length > 0) {
+    if (JSON.stringify(config.testing ?? {}) !== JSON.stringify(currentTesting)) {
+      config.testing = currentTesting;
+      touched = true;
+    }
+  }
+
+  if (touched) {
+    await writeFile(configAbs, JSON.stringify(config, null, 2) + "\n", "utf8");
+    const details = [
+      guidance.fastCommand ? `fast=${guidance.fastCommand}` : null,
+      guidance.integrationCommand
+        ? `integration=${guidance.integrationCommand}`
+        : null,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" ");
+    console.log(
+      `  [updated] ${harness_CONFIG_NAME} — testing guidance${details ? ` (${details})` : ""}`,
+    );
+  }
+
+  return guidance;
 }
 
 function renderLocalActivationMessage(target: InitTarget, update: boolean): string {
@@ -3649,10 +4136,18 @@ function looksLikeLegacyAgentsScaffold(
 async function ensureAgentsFile(
   filePath: string,
   workflowPaths: WorkflowPaths,
+  testingContext: TemplateTestingContext,
   update: boolean,
+  layout: ScaffoldLayout,
 ): Promise<void> {
-  const renderedManagedSection = renderManagedAgentsSection(workflowPaths);
-  const renderedFile = renderAgentsFile(workflowPaths);
+  const renderedManagedSection =
+    layout === "thin"
+      ? renderThinManagedAgentsSection(workflowPaths)
+      : renderManagedAgentsSection(workflowPaths, testingContext);
+  const renderedFile =
+    layout === "thin"
+      ? renderThinAgentsFile(workflowPaths)
+      : renderAgentsFile(workflowPaths, testingContext);
 
   if (!(await fileExists(filePath))) {
     await mkdir(path.dirname(filePath), { recursive: true });
@@ -3754,7 +4249,10 @@ async function ensureVSCodeMcpServer(
       ...parsed,
       servers: {
         ...servers,
-        "arufheim-harness": VSCODE_GLOBAL_HARNESS_SERVER_ENTRY,
+        "arufheim-harness":
+          (buildDefaultVSCodeMcpJson() as {
+            servers: Record<string, unknown>;
+          }).servers["arufheim-harness"],
       },
     };
     if (
@@ -3786,11 +4284,13 @@ async function ensureClaudeProjectMcpServer(
     };
     const mcpServers = parsed.mcpServers ?? {};
     const next = {
-      ...parsed,
+        ...parsed,
       mcpServers: {
         ...mcpServers,
         "arufheim-harness":
-          DEFAULT_CLAUDE_PROJECT_MCP_JSON.mcpServers["arufheim-harness"],
+          (buildDefaultClaudeProjectMcpJson() as {
+            mcpServers: Record<string, unknown>;
+          }).mcpServers["arufheim-harness"],
       },
     };
     if (
@@ -3871,14 +4371,18 @@ async function ensureOpenCodeConfig(
       permission?: Record<string, unknown>;
     };
     const next = {
-      ...parsed,
+        ...parsed,
       mcp: {
         ...(parsed.mcp ?? {}),
-        "arufheim-harness": DEFAULT_OPENCODE_JSON.mcp["arufheim-harness"],
+        "arufheim-harness": (buildDefaultOpenCodeJson() as {
+          mcp: Record<string, unknown>;
+        }).mcp["arufheim-harness"],
       },
       permission: {
         ...(parsed.permission ?? {}),
-        ...DEFAULT_OPENCODE_JSON.permission,
+        ...(buildDefaultOpenCodeJson() as {
+          permission: Record<string, unknown>;
+        }).permission,
       },
     };
     if (
@@ -3985,7 +4489,10 @@ async function runInitLocal(
   repoPath: string,
   update = false,
   target: InitTarget = "all",
+  explicitLayout?: ScaffoldLayout,
+  ensureManagedRuntime = false,
 ): Promise<void> {
+  const scaffoldLayout = explicitLayout ?? (await inferScaffoldLayout(repoPath));
   const verb = update ? "Actualizando" : "Inicializando";
   const targetLabel =
     target === "claude"
@@ -3994,12 +4501,20 @@ async function runInitLocal(
         ? " [GitHub/Copilot]"
         : target === "opencode"
           ? " [OpenCode]"
-          : target === "codex"
+        : target === "codex"
             ? " [Codex]"
           : "";
-  console.log(`\n${verb} harness${targetLabel} en: ${repoPath}\n`);
+  console.log(
+    `\n${verb} harness${targetLabel} en: ${repoPath} (${scaffoldLayout})\n`,
+  );
+
+  if (ensureManagedRuntime) {
+    const runtime = await ensureManagedGlobalRuntime();
+    console.log(`  runtime managed_global -> ${runtime.shimPath}`);
+  }
 
   const writeInfra = true;
+  const writeFullSharedAssets = scaffoldLayout === "full";
   const writeGithub = target === "all" || target === "copilot";
   const writeClaude = target === "all" || target === "claude";
   const writeOpenCode = target === "all" || target === "opencode";
@@ -4011,14 +4526,14 @@ async function runInitLocal(
   }
   const progressReadmePath = progressReadmePathFor(workflowPaths);
   const inboxReadmePath = inboxReadmePathFor(workflowPaths);
-  const githubPrompts = scaffoldGithubPrompts(workflowPaths);
-  const claudeAgents = scaffoldClaudeAgents(workflowPaths);
+  let testingTemplateContext = defaultTemplateTestingContext();
 
   // ── Infrastructure ─────────────────────────────────────────────────────────
   if (writeInfra) {
     await writeIfAbsent(
       path.join(repoPath, harness_CONFIG_NAME),
-      JSON.stringify(DEFAULT_harness_CONFIG, null, 2) + "\n",
+      JSON.stringify(buildDefaultHarnessConfig(scaffoldLayout, target), null, 2) +
+        "\n",
       harness_CONFIG_NAME,
     );
 
@@ -4037,6 +4552,15 @@ async function runInitLocal(
           cfg["agentRouting"] = DEFAULT_AGENT_ROUTING_CONFIG;
           touched = true;
         }
+        const nextScaffold =
+          typeof cfg.scaffold === "object" && cfg.scaffold !== null
+            ? { ...(cfg.scaffold as Record<string, unknown>) }
+            : {};
+        if (nextScaffold["layout"] !== scaffoldLayout) {
+          nextScaffold["layout"] = scaffoldLayout;
+          cfg["scaffold"] = nextScaffold;
+          touched = true;
+        }
         if (touched) {
           await writeFile(
             configAbs,
@@ -4044,7 +4568,7 @@ async function runInitLocal(
             "utf8",
           );
           console.log(
-            `  [updated] ${harness_CONFIG_NAME} — se completaron campos base (version/agentRouting)`,
+            `  [updated] ${harness_CONFIG_NAME} — se completaron campos base (version/agentRouting/scaffold.layout)`,
           );
         }
       } catch {
@@ -4052,7 +4576,17 @@ async function runInitLocal(
       }
     }
 
+    testingTemplateContext = buildTestingTemplateContext(
+      await reconcileManagedTestingConfig(repoPath),
+    );
+
     await mkdir(path.join(repoPath, HARNESS_DIR), { recursive: true });
+    await writeManagedFile(
+      path.join(repoPath, REPO_RUNTIME_LAUNCHER_PATH),
+      getRepoRuntimeLauncherSource(),
+      REPO_RUNTIME_LAUNCHER_PATH,
+      update,
+    );
     await writeIfAbsent(
       path.join(repoPath, workflowPaths.featureListPath),
       featureListTemplate(repoPath),
@@ -4089,115 +4623,133 @@ async function runInitLocal(
     await mkdir(path.join(repoPath, workflowPaths.inboxProcessedDir), {
       recursive: true,
     });
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_ARCHITECTURE_PATH),
-      SCAFFOLD_ARCHITECTURE_DOC_CONTENT,
-      DOCS_ARCHITECTURE_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_CONVENTIONS_PATH),
-      SCAFFOLD_CONVENTIONS_DOC_CONTENT,
-      DOCS_CONVENTIONS_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_SPECS_PATH),
-      renderWorkflowTemplate(SCAFFOLD_SPECS_DOC_CONTENT, workflowPaths),
-      DOCS_SPECS_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_SPECS_POLICY_PATH),
-      SCAFFOLD_SPECS_POLICY_DOC_CONTENT,
-      DOCS_SPECS_POLICY_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_VERIFICATION_PATH),
-      SCAFFOLD_VERIFICATION_DOC_CONTENT,
-      DOCS_VERIFICATION_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_MODEL_INTERFACE_PATH),
-      SCAFFOLD_MODEL_INTERFACE_DOC_CONTENT,
-      DOCS_MODEL_INTERFACE_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_CONTEXT_MANAGER_PATH),
-      renderWorkflowTemplate(
-        SCAFFOLD_CONTEXT_MANAGER_DOC_CONTENT,
-        workflowPaths,
-      ),
-      DOCS_CONTEXT_MANAGER_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_EXECUTION_ENGINE_PATH),
-      SCAFFOLD_EXECUTION_ENGINE_DOC_CONTENT,
-      DOCS_EXECUTION_ENGINE_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_MEMORY_SYSTEM_PATH),
-      SCAFFOLD_MEMORY_SYSTEM_DOC_CONTENT,
-      DOCS_MEMORY_SYSTEM_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_ORCHESTRATION_PATH),
-      renderWorkflowTemplate(SCAFFOLD_ORCHESTRATION_DOC_CONTENT, workflowPaths),
-      DOCS_ORCHESTRATION_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_TOOL_CATALOG_PATH),
-      SCAFFOLD_TOOL_CATALOG_DOC_CONTENT,
-      DOCS_TOOL_CATALOG_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_OBSERVATION_POLICY_PATH),
-      renderWorkflowTemplate(
-        SCAFFOLD_OBSERVATION_POLICY_DOC_CONTENT,
-        workflowPaths,
-      ),
-      DOCS_OBSERVATION_POLICY_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_LOOP_CONTRACT_PATH),
-      SCAFFOLD_LOOP_CONTRACT_DOC_CONTENT,
-      DOCS_LOOP_CONTRACT_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_PLANNING_MODEL_PATH),
-      SCAFFOLD_PLANNING_MODEL_DOC_CONTENT,
-      DOCS_PLANNING_MODEL_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_BUDGETS_PATH),
-      SCAFFOLD_BUDGETS_DOC_CONTENT,
-      DOCS_BUDGETS_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_CONTRACT_VERSIONS_PATH),
-      SCAFFOLD_CONTRACT_VERSIONS_DOC_CONTENT,
-      DOCS_CONTRACT_VERSIONS_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, DOCS_FRONTEND_ADAPTERS_PATH),
-      SCAFFOLD_FRONTEND_ADAPTERS_DOC_CONTENT,
-      DOCS_FRONTEND_ADAPTERS_PATH,
-    );
-    await writeIfAbsent(
-      path.join(repoPath, CHECKPOINTS_PATH),
-      renderWorkflowTemplate(SCAFFOLD_CHECKPOINTS_CONTENT, workflowPaths),
-      CHECKPOINTS_PATH,
-    );
-    await writeExecutableIfAbsent(
-      path.join(repoPath, REPO_INIT_SCRIPT_PATH),
-      SCAFFOLD_REPO_INIT_SH,
-      REPO_INIT_SCRIPT_PATH,
-    );
+    if (writeFullSharedAssets) {
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_ARCHITECTURE_PATH),
+        SCAFFOLD_ARCHITECTURE_DOC_CONTENT,
+        DOCS_ARCHITECTURE_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_CONVENTIONS_PATH),
+        SCAFFOLD_CONVENTIONS_DOC_CONTENT,
+        DOCS_CONVENTIONS_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_SPECS_PATH),
+        renderWorkflowTemplate(SCAFFOLD_SPECS_DOC_CONTENT, workflowPaths),
+        DOCS_SPECS_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_SPECS_POLICY_PATH),
+        SCAFFOLD_SPECS_POLICY_DOC_CONTENT,
+        DOCS_SPECS_POLICY_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_VERIFICATION_PATH),
+        renderWorkflowTemplate(
+          SCAFFOLD_VERIFICATION_DOC_CONTENT,
+          workflowPaths,
+          testingTemplateContext,
+        ),
+        DOCS_VERIFICATION_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_MODEL_INTERFACE_PATH),
+        SCAFFOLD_MODEL_INTERFACE_DOC_CONTENT,
+        DOCS_MODEL_INTERFACE_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_CONTEXT_MANAGER_PATH),
+        renderWorkflowTemplate(
+          SCAFFOLD_CONTEXT_MANAGER_DOC_CONTENT,
+          workflowPaths,
+          testingTemplateContext,
+        ),
+        DOCS_CONTEXT_MANAGER_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_EXECUTION_ENGINE_PATH),
+        SCAFFOLD_EXECUTION_ENGINE_DOC_CONTENT,
+        DOCS_EXECUTION_ENGINE_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_MEMORY_SYSTEM_PATH),
+        SCAFFOLD_MEMORY_SYSTEM_DOC_CONTENT,
+        DOCS_MEMORY_SYSTEM_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_ORCHESTRATION_PATH),
+        renderWorkflowTemplate(
+          SCAFFOLD_ORCHESTRATION_DOC_CONTENT,
+          workflowPaths,
+        ),
+        DOCS_ORCHESTRATION_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_TOOL_CATALOG_PATH),
+        SCAFFOLD_TOOL_CATALOG_DOC_CONTENT,
+        DOCS_TOOL_CATALOG_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_OBSERVATION_POLICY_PATH),
+        renderWorkflowTemplate(
+          SCAFFOLD_OBSERVATION_POLICY_DOC_CONTENT,
+          workflowPaths,
+        ),
+        DOCS_OBSERVATION_POLICY_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_LOOP_CONTRACT_PATH),
+        SCAFFOLD_LOOP_CONTRACT_DOC_CONTENT,
+        DOCS_LOOP_CONTRACT_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_PLANNING_MODEL_PATH),
+        SCAFFOLD_PLANNING_MODEL_DOC_CONTENT,
+        DOCS_PLANNING_MODEL_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_BUDGETS_PATH),
+        SCAFFOLD_BUDGETS_DOC_CONTENT,
+        DOCS_BUDGETS_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_CONTRACT_VERSIONS_PATH),
+        SCAFFOLD_CONTRACT_VERSIONS_DOC_CONTENT,
+        DOCS_CONTRACT_VERSIONS_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, DOCS_FRONTEND_ADAPTERS_PATH),
+        SCAFFOLD_FRONTEND_ADAPTERS_DOC_CONTENT,
+        DOCS_FRONTEND_ADAPTERS_PATH,
+      );
+      await writeIfAbsent(
+        path.join(repoPath, CHECKPOINTS_PATH),
+        renderWorkflowTemplate(SCAFFOLD_CHECKPOINTS_CONTENT, workflowPaths),
+        CHECKPOINTS_PATH,
+      );
+      await writeExecutableIfAbsent(
+        path.join(repoPath, REPO_INIT_SCRIPT_PATH),
+        SCAFFOLD_REPO_INIT_SH,
+        REPO_INIT_SCRIPT_PATH,
+      );
+    }
     await ensureAgentsFile(
       path.join(repoPath, AGENTS_MD_PATH),
       workflowPaths,
+      testingTemplateContext,
       update,
+      scaffoldLayout,
     );
     await writeManagedFile(
       path.join(repoPath, CODEX_MD_PATH),
-      renderWorkflowTemplate(SCAFFOLD_CODEX_MD_TEMPLATE, workflowPaths),
+      renderWorkflowTemplate(
+        scaffoldLayout === "thin"
+          ? THIN_CODEX_MD_TEMPLATE
+          : SCAFFOLD_CODEX_MD_TEMPLATE,
+        workflowPaths,
+        testingTemplateContext,
+      ),
       CODEX_MD_PATH,
       update,
     );
@@ -4210,43 +4762,57 @@ async function runInitLocal(
       path.join(repoPath, CODEX_CONFIG_PATH),
       update,
     );
-    await reconcileManagedScaffoldClients(repoPath, target);
+    await reconcileManagedScaffoldClients(repoPath, target, scaffoldLayout);
   }
+
+  const githubPrompts = scaffoldGithubPrompts(
+    workflowPaths,
+    testingTemplateContext,
+  );
+  const claudeAgents = scaffoldClaudeAgents(
+    workflowPaths,
+    testingTemplateContext,
+  );
 
   // ── GitHub / Copilot ───────────────────────────────────────────────────────
   if (writeGithub) {
     await writeIfAbsent(
       path.join(repoPath, VSCODE_MCP_PATH),
-      JSON.stringify(DEFAULT_MCP_JSON, null, 2) + "\n",
+      JSON.stringify(buildDefaultVSCodeMcpJson(), null, 2) + "\n",
       VSCODE_MCP_PATH,
     );
     await ensureVSCodeMcpServer(path.join(repoPath, VSCODE_MCP_PATH), update);
     await writeManagedFile(
       path.join(repoPath, COPILOT_INSTRUCTIONS_PATH),
       renderWorkflowTemplate(
-        SCAFFOLD_COPILOT_INSTRUCTIONS_TEMPLATE,
+        scaffoldLayout === "thin"
+          ? THIN_COPILOT_INSTRUCTIONS_TEMPLATE
+          : SCAFFOLD_COPILOT_INSTRUCTIONS_TEMPLATE,
         workflowPaths,
+        testingTemplateContext,
       ),
       COPILOT_INSTRUCTIONS_PATH,
       update,
     );
 
-    // Agent prompts + AGENTS.md
-    await mkdir(path.join(repoPath, GITHUB_PROMPTS_DIR), { recursive: true });
-    for (const [filename, content] of githubPrompts) {
-      const filePath = path.join(repoPath, GITHUB_PROMPTS_DIR, filename);
-      const label = `${GITHUB_PROMPTS_DIR}/${filename}`;
-      if (await fileExists(filePath)) {
-        const existing = await readFile(filePath, "utf8");
-        if (!existing.includes(AGENTS_VERSION_MARKER)) {
-          await writeFile(filePath, content, "utf8");
-          console.log(`  [updated] ${label} — versión de agentes actualizada`);
+    if (writeFullSharedAssets) {
+      // Agent prompts + AGENTS.md
+      await mkdir(path.join(repoPath, GITHUB_PROMPTS_DIR), { recursive: true });
+      for (const [filename, content] of githubPrompts) {
+        const filePath = path.join(repoPath, GITHUB_PROMPTS_DIR, filename);
+        const label = `${GITHUB_PROMPTS_DIR}/${filename}`;
+        if (await fileExists(filePath)) {
+          const existing = await readFile(filePath, "utf8");
+          if (!existing.includes(AGENTS_VERSION_MARKER)) {
+            await writeFile(filePath, content, "utf8");
+            console.log(`  [updated] ${label} — versión de agentes actualizada`);
+          } else {
+            console.log(`  skip  ${label} (ya tiene ${AGENTS_VERSION_MARKER})`);
+          }
         } else {
-          console.log(`  skip  ${label} (ya tiene ${AGENTS_VERSION_MARKER})`);
+          await writeFile(filePath, content, "utf8");
+          console.log(`  create ${label}`);
         }
-      } else {
-        await writeFile(filePath, content, "utf8");
-        console.log(`  create ${label}`);
       }
     }
   }
@@ -4255,42 +4821,54 @@ async function runInitLocal(
   if (writeClaude) {
     await writeManagedFile(
       path.join(repoPath, CLAUDE_MD_PATH),
-      renderWorkflowTemplate(SCAFFOLD_CLAUDE_MD_TEMPLATE, workflowPaths),
+      renderWorkflowTemplate(
+        scaffoldLayout === "thin"
+          ? THIN_CLAUDE_MD_TEMPLATE
+          : SCAFFOLD_CLAUDE_MD_TEMPLATE,
+        workflowPaths,
+        testingTemplateContext,
+      ),
       CLAUDE_MD_PATH,
       update,
     );
     await writeIfAbsent(
       path.join(repoPath, CLAUDE_PROJECT_MCP_PATH),
-      JSON.stringify(DEFAULT_CLAUDE_PROJECT_MCP_JSON, null, 2) + "\n",
+      JSON.stringify(buildDefaultClaudeProjectMcpJson(), null, 2) + "\n",
       CLAUDE_PROJECT_MCP_PATH,
     );
     await ensureClaudeProjectMcpServer(
       path.join(repoPath, CLAUDE_PROJECT_MCP_PATH),
       update,
     );
-    await writeManagedFile(
-      path.join(repoPath, CLAUDE_COMMAND_PATH),
-      renderWorkflowTemplate(SCAFFOLD_CLAUDE_COMMAND_TEMPLATE, workflowPaths),
-      CLAUDE_COMMAND_PATH,
-      update,
-    );
+    if (writeFullSharedAssets) {
+      await writeManagedFile(
+        path.join(repoPath, CLAUDE_COMMAND_PATH),
+        renderWorkflowTemplate(
+          SCAFFOLD_CLAUDE_COMMAND_TEMPLATE,
+          workflowPaths,
+          testingTemplateContext,
+        ),
+        CLAUDE_COMMAND_PATH,
+        update,
+      );
 
-    // Claude subagents
-    await mkdir(path.join(repoPath, CLAUDE_AGENTS_DIR), { recursive: true });
-    for (const [filename, content] of claudeAgents) {
-      const filePath = path.join(repoPath, CLAUDE_AGENTS_DIR, filename);
-      const label = `${CLAUDE_AGENTS_DIR}/${filename}`;
-      if (await fileExists(filePath)) {
-        const existing = await readFile(filePath, "utf8");
-        if (!existing.includes(AGENTS_VERSION_MARKER)) {
-          await writeFile(filePath, content, "utf8");
-          console.log(`  [updated] ${label} — versión de agentes actualizada`);
+      // Claude subagents
+      await mkdir(path.join(repoPath, CLAUDE_AGENTS_DIR), { recursive: true });
+      for (const [filename, content] of claudeAgents) {
+        const filePath = path.join(repoPath, CLAUDE_AGENTS_DIR, filename);
+        const label = `${CLAUDE_AGENTS_DIR}/${filename}`;
+        if (await fileExists(filePath)) {
+          const existing = await readFile(filePath, "utf8");
+          if (!existing.includes(AGENTS_VERSION_MARKER)) {
+            await writeFile(filePath, content, "utf8");
+            console.log(`  [updated] ${label} — versión de agentes actualizada`);
+          } else {
+            console.log(`  skip  ${label} (ya tiene ${AGENTS_VERSION_MARKER})`);
+          }
         } else {
-          console.log(`  skip  ${label} (ya tiene ${AGENTS_VERSION_MARKER})`);
+          await writeFile(filePath, content, "utf8");
+          console.log(`  create ${label}`);
         }
-      } else {
-        await writeFile(filePath, content, "utf8");
-        console.log(`  create ${label}`);
       }
     }
   }
@@ -4299,17 +4877,23 @@ async function runInitLocal(
   if (writeOpenCode) {
     await writeManagedFile(
       path.join(repoPath, OPENCODE_CONFIG_PATH),
-      JSON.stringify(DEFAULT_OPENCODE_JSON, null, 2) + "\n",
+      JSON.stringify(buildDefaultOpenCodeJson(), null, 2) + "\n",
       OPENCODE_CONFIG_PATH,
       update,
     );
     await ensureOpenCodeConfig(path.join(repoPath, OPENCODE_CONFIG_PATH), update);
-    await writeManagedFile(
-      path.join(repoPath, OPENCODE_COMMAND_PATH),
-      renderWorkflowTemplate(SCAFFOLD_OPENCODE_COMMAND_TEMPLATE, workflowPaths),
-      OPENCODE_COMMAND_PATH,
-      update,
-    );
+    if (writeFullSharedAssets) {
+      await writeManagedFile(
+        path.join(repoPath, OPENCODE_COMMAND_PATH),
+        renderWorkflowTemplate(
+          SCAFFOLD_OPENCODE_COMMAND_TEMPLATE,
+          workflowPaths,
+          testingTemplateContext,
+        ),
+        OPENCODE_COMMAND_PATH,
+        update,
+      );
+    }
   }
 
   console.log(renderLocalActivationMessage(target, update));
@@ -4325,8 +4909,25 @@ export async function runInit(options: InitOptions): Promise<void> {
       path.resolve(options.repoPath),
       options.update,
       options.target ?? "all",
+      options.layout,
+      options.ensureManagedRuntime ?? false,
     );
   }
+}
+
+export function readLayoutArg(argv: string[]): ScaffoldLayout | undefined {
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === "--layout") {
+      const next = argv[index + 1];
+      return next === "thin" || next === "full" ? next : undefined;
+    }
+    if (value.startsWith("--layout=")) {
+      const next = value.slice("--layout=".length);
+      return next === "thin" || next === "full" ? next : undefined;
+    }
+  }
+  return undefined;
 }
 
 export function readExplicitInitRepoPath(argv: string[]): string | null {

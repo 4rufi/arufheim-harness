@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+declare const __HARNESS_VERSION__: string | undefined;
+
 function readHarnessVersion(): string {
+  if (typeof __HARNESS_VERSION__ === "string" && __HARNESS_VERSION__.trim() !== "") {
+    return __HARNESS_VERSION__.trim();
+  }
+
   try {
     const filePath = path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),

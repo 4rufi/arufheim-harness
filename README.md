@@ -16,7 +16,7 @@ La idea es simple:
 
 ## Qué hace hoy
 
-- inicializa un repo con layout canónico en `.harness/` y `.harness-docs/`
+- inicializa un repo con layout canónico en `.harness/` y wrappers repo-locales mínimos; `thin` es el default para repos nuevos y `full` sigue disponible cuando quieres materializar todo el scaffold largo
 - añade una capa operativa con `setup`, `doctor`, `repair` y `harness://health`
 - expone tools MCP para exploración, workflow, loop state, inbox, memoria, métricas y progreso
 - mantiene backlog activo, historial de features y estado de sesión
@@ -32,161 +32,223 @@ La idea es simple:
 - `npm` para instalación global
 - `pnpm` solo si vas a desarrollar **este** repo de harness
 
-## Instalación global
+## Inicio rápido
 
-Instala el binario una vez:
+### 1. Configura la máquina una vez
 
-```bash
-npm install -g arufheim-harness
-```
-
-Después puedes usar:
+Instala o actualiza el CLI global y siembra el runtime gestionado:
 
 ```bash
-arufheim-harness help
+npm install -g arufheim-harness@latest
+arufheim-harness setup --global-runtime
 ```
 
-## Camino recomendado
+Esto crea un runtime user-local en `~/.config/arufheim-harness/` en macOS/Linux
+o `%APPDATA%/arufheim-harness/` en Windows. Los proyectos no necesitan declarar
+`arufheim-harness` como dependencia local.
 
-### 1. Configurar clientes MCP globales
+### 2. Configura cada repo
 
-Si quieres dejar configurados los clientes globales gestionados por el arnés:
+```bash
+cd /ruta/al/repo
+arufheim-harness setup --repo-path .
+arufheim-harness verify --repo-path .
+```
+
+`setup` usa `thin` por defecto en repos consumidores. Eso deja visible solo el
+estado del repo, wrappers mínimos y bindings cliente; las docs largas viven en
+el runtime compartido.
+
+### 3. Abre el cliente
+
+Abre o recarga el repo en Codex, VS Code, Claude Code u OpenCode. En el primer
+arranque fuerza una llamada a:
+
+```text
+harness_status(mode: "brief_minimal")
+```
+
+Confirma que `repo_path` sea el repo abierto antes de mutar estado. Después:
+
+```bash
+arufheim-harness verify --repo-path .
+```
+
+Si `verify` queda verde, el repo está operativo. Clientes no configurados pueden
+aparecer como `missing`; eso no bloquea si no los usas.
+
+## Actualizar un repo existente
+
+```bash
+npm install -g arufheim-harness@latest
+arufheim-harness setup --global-runtime
+
+cd /ruta/al/repo
+arufheim-harness setup --repo-path . --update
+arufheim-harness migrate --repo-path . --to thin
+arufheim-harness repair --repo-path .
+arufheim-harness verify --repo-path .
+```
+
+`setup --update` reconcilia el layout actual. `migrate --to thin` es el paso
+explícito que baja el ruido del repo.
+
+Si `migrate` reporta `preserved_override`, el harness preservó archivos que
+difieren del scaffold gestionado para no borrar contenido humano. Si confirmas
+que no necesitas esos overrides, puedes podarlos manualmente:
+
+```bash
+mkdir -p /tmp/harness-thin-backup
+cp -R .harness-docs CHECKPOINTS.md init.sh /tmp/harness-thin-backup/ 2>/dev/null || true
+rm -rf .harness-docs
+rm -f CHECKPOINTS.md init.sh
+arufheim-harness repair --repo-path .
+arufheim-harness verify --repo-path .
+```
+
+No borres `harness.config.json`, `.harness/`, `.harness/runtime/launch-global-runtime.mjs`
+ni el binding del cliente que usas.
+
+## Elegir clientes
+
+Por defecto `setup` configura todos los clientes soportados cuando corresponde.
+Para limitar el ruido a un solo cliente:
+
+```bash
+arufheim-harness setup --repo-path . --clients codex
+```
+
+Clientes soportados:
+
+- `codex`
+- `copilot`
+- `claude`
+- `opencode`
+
+Si quieres todos explícitamente:
+
+```bash
+arufheim-harness setup --repo-path . --clients all
+```
+
+## Global clients opcionales
+
+El camino recomendado es repo-scoped: configurar cada repo con `setup`. Usa
+bindings globales solo si quieres dejar clientes globales preconfigurados en la
+máquina:
 
 ```bash
 arufheim-harness setup --global
 ```
 
-Si además quieres dejar listo un repo concreto para los clientes con fallback
-global ambiguo:
+Para un repo concreto:
 
 ```bash
 arufheim-harness setup --global --repo-path /ruta/al/repo
 ```
 
-Puedes filtrar clientes concretos:
-
-```bash
-arufheim-harness setup --global --clients claude,codex,copilot
-```
-
-Si quieres forzar la reconciliación de la entrada gestionada existente:
-
-```bash
-arufheim-harness setup --global --update --clients claude,codex,copilot
-```
-
-Si un config global gestionado está roto y quieres que el arnés haga backup
-antes de regenerar solo la entrada gestionada:
+Si una config global gestionada está rota:
 
 ```bash
 arufheim-harness repair --global --clients codex --force-managed-global
 ```
 
-Esto instala o actualiza la configuración MCP global donde corresponda.
+`setup --global` y `repair --global` fallan cerrado ante configs inválidas por
+defecto. Con `--force-managed-global`, el harness crea backup y regenera solo la
+entrada gestionada.
 
-Si pasas `--repo-path <ruta>` o ejecutas el comando desde un repo harness ya
-detectable, `setup --global` también deja los bindings repo-scoped preferidos
-para `Claude Code` y `Codex` en ese repo. Eso evita depender solo del fallback
-global con `--repo-path "."`.
+## Thin vs full
 
-### 2. Resolver el repo
-
-Dentro del repo donde quieres usar el workflow:
-
-```bash
-cd /ruta/al/repo
-arufheim-harness setup
-```
-
-Esto crea la estructura base:
-
-- `.harness/feature_list.json`
-- `.harness/feature_history.json`
-- `.harness/progress/`
-- `.harness/inbox/`
-- `.harness-docs/`
-- `CHECKPOINTS.md`
-- `init.sh`
-- `AGENTS.md`
-- `CLAUDE.md`
-- `CODEX.md`
-- `.mcp.json`
-- `.codex/config.toml`
-- `.claude/agents/`
-- `.claude/commands/harness.md`
-- `.opencode/opencode.json`
-- `.opencode/commands/harness.md`
-- `.github/prompts/`
-- `.github/copilot-instructions.md`
-- `.vscode/mcp.json`
-
-Además deja listo:
-
-- `harness.config.json` con comandos permitidos, ignores y `permissionPolicy`
-- `.harness/progress/current.md` y `.harness/progress/history.md`
-- `.harness-docs/` con contratos del arnés, reglas SDD, budgets, adapters y loop contract
-- entrypoints para Claude, Codex, Copilot y OpenCode
-- validación final de health con resumen legible del repo
-
-Si quieres limitar integraciones cliente sin quitar el core del arnés:
+- `thin`: default para repos consumidores; conserva `.harness/`, wrappers mínimos
+  y bindings repo-scoped.
+- `full`: materializa `.harness-docs/`, `CHECKPOINTS.md`, `init.sh`, prompts y
+  agentes largos dentro del repo.
 
 ```bash
-arufheim-harness setup --clients codex
+arufheim-harness setup --repo-path . --layout full
 ```
 
-Eso mantiene todo el workflow base, scaffolda solo adapter Codex, guarda
-`scaffold.localClients=["codex"]` en `harness.config.json` y hace que `doctor`
-no degrade por Claude/Copilot/OpenCode omitidos a propósito.
+Usa `full` para debugging, inspección, entrenamiento del equipo o desarrollo del
+propio harness.
 
-Si el repo ya existe y quieres forzar la reconciliación de sections/assets gestionados:
+## Cuando algo falla
 
-```bash
-arufheim-harness setup --update
-```
-
-### 3. Inspeccionar o reparar
+Inspección:
 
 ```bash
 arufheim-harness doctor
-```
-
-Salida estructurada:
-
-```bash
 arufheim-harness doctor --json
 ```
 
-Fallback CLI mínimo del snapshot inicial cuando el frontend no cargó `harness_status`:
+Autoreparación de assets/config gestionados:
+
+```bash
+arufheim-harness repair --repo-path .
+```
+
+Snapshot CLI cuando el frontend no cargó tools MCP:
 
 ```bash
 arufheim-harness status --brief-minimal --json
 ```
 
-Si además necesitas activation/`client_readiness` en el fallback CLI:
+Snapshot con activation/client readiness:
 
 ```bash
 arufheim-harness status --brief --json
 ```
 
-Si quieres estimar el costo local de un flujo completo sin tocar `session.json`:
+Docs compartidas en layout `thin`:
 
 ```bash
-arufheim-harness simulate --flow startup --json
-arufheim-harness simulate --flow triage --json
+arufheim-harness docs list
+arufheim-harness docs show verification
 ```
-
-`doctor --json`, `status --json`, `status --brief --json` y `harness_status(mode: "brief_only")` exponen además
-`client_readiness`, que resume por cliente si quedó:
-
-- `verified`
-- `configured_needs_activation`
-- `stale_reverification_required`
-- `invalid_manual_fix_required`
-- `missing`
 
 Si hay una feature activa, `doctor --json`, `status --json`, `harness_status` y `harness://health`
 exponen también `loop_summary`. Para consultar el estado detallado del intento actual
 usa `harness_loop_status` o `harness://loop/active`.
+
+## Feedback Rápido y Headroom
+
+El harness formaliza TDD como disciplina parcial por capas dentro del loop, no
+como ritual universal.
+
+- `unit-first`: lógica pura, reducers, parsers, policy, loop transitions y helpers
+- `contract-first`: salidas públicas estables como `doctor --json`, `status --json`, `simulate --json` y shapes MCP
+- `smoke-driven`: `setup`, `repair`, `upgrade`, release, stdio, bindings y cruces entre capas
+- `liviano o excepción justificada`: docs, scaffold, prompts y trabajo exploratorio donde el contrato todavía no está claro
+
+Si una requirement observable no tiene test rápido razonable, el flujo correcto
+es dejar excepción justificada más verificación ejecutable, no inventar un test
+frágil.
+
+`testing.fastCommand` e `integrationCommand` no significan “chequéalos siempre
+antes de editar”. Significan “si este cambio necesita feedback rápido o cierre
+de integración y el repo ya declara esos comandos, usa el primer comando real
+que corresponda”.
+
+En particular, el harness no debería empujar preflights de tooling como
+`pnpm --version` o `vitest --version` salvo que estés depurando el propio stack
+de testing o el primer comando real haya fallado.
+
+Además, cuando una feature queda `in_progress`, el harness mantiene un artifact
+interno corto:
+
+- `.harness/progress/head_<feature>.md`
+
+Ese archivo resume:
+
+- fase, intento y review round
+- `R<n>` activas
+- capa de test elegida
+- comando rápido recomendado
+- último `error_signature`
+- último `strategy_delta`
+- archivos mínimos a abrir
+- siguiente acción esperada
+
+`agent`, prompts y adapters lo usan antes de abrir artifacts largos.
 
 Autoreparación de assets/config gestionados por el arnés:
 
@@ -194,11 +256,16 @@ Autoreparación de assets/config gestionados por el arnés:
 arufheim-harness repair
 ```
 
-Verificación estricta dentro del workflow del repo:
+Verificación estricta del repo consumidor:
 
 ```bash
-./init.sh
+arufheim-harness verify --repo-path .
 ```
+
+Si el repo está en layout `full`, `./init.sh` sigue existiendo como wrapper
+estricto del doctor local. Úsalo solo cuando el binario ya está disponible vía
+`ARUFHEIM_HARNESS_ENTRY` o `arufheim-harness` en `PATH`; ese wrapper ya no hace
+fallback a `npx`.
 
 Qué valida:
 
@@ -206,7 +273,7 @@ Qué valida:
 - shape de `feature_list.json`
 - presencia de specs SDD cuando corresponde
 - evidencia de implementación/review para features cerradas
-- `typecheck`, `build` y `smoke`
+- `typecheck`, `test`, `build` y `smoke`
 
 ## Primitives avanzadas
 
@@ -216,8 +283,12 @@ cuando necesitas bootstrap o migración de más bajo nivel.
 Semántica:
 
 - `setup`: converge al estado listo con el menor cambio necesario
-- `setup --update`: fuerza reconciliación del scaffold y de las entradas gestionadas
+- `setup` en repos nuevos usa `thin` por defecto; es el layout recomendado para repos consumidores
+- `setup --update`: fuerza reconciliación dentro del layout actual del repo; no migra entre `thin` y `full`
+- `migrate --to thin`: migra un repo existente al layout `thin` de forma explícita, segura y con pruning solo de assets gestionados
 - `repair`: repara solo assets/config gestionados por el arnés
+- `verify`: gate estricto del repo consumidor sin depender de `init.sh`
+- `docs list` / `docs show <topic>`: exponen la documentación compartida del harness cuando el repo está en `thin`
 - `status --brief-minimal --json`: fallback CLI mínimo del `startup_brief` cuando el MCP no cargó tools
 - `status --brief --json`: fallback CLI rico cuando además necesitas activation/`client_readiness`
 - `simulate --flow <startup|activation|loop|triage>`: estima bytes/tokens locales por flujo sin contaminar métricas de sesión
@@ -286,8 +357,12 @@ arufheim-harness repair
 ```
 
 El runtime nuevo sigue leyendo esos repos viejos, y `init --update` copia su
-estado al layout actual en `.harness/` y `.harness-docs/` sin borrar los
-archivos legacy.
+estado al layout actual sin borrar los archivos legacy. Si luego quieres bajar
+ruido del repo, usa la migración explícita:
+
+```bash
+arufheim-harness migrate --to thin
+```
 
 `doctor` debería marcar esos repos como:
 
@@ -330,6 +405,7 @@ Artifacts importantes:
 - `.harness/progress/impl_<feature>.md`: evidencia del implementer
 - `.harness/progress/review_<feature>.md`: veredicto del reviewer
 - `.harness/progress/spec_<feature>.md`: bloqueos o faltantes de spec
+- `.harness/progress/head_<feature>.md`: resumen corto y reescribible del intento activo
 
 ### Cuándo usar SDD
 
@@ -342,18 +418,33 @@ Disparadores fuertes:
 - cambio de contrato, estado o flujo
 - cambio multiarchivo con comportamiento observable
 
-La política completa vive en `.harness-docs/specs_policy.md` dentro del repo bootstrappeado.
+La política completa vive en `specs_policy`, accesible como archivo local en
+layout `full` o vía `arufheim-harness docs show specs_policy` en layout `thin`.
 
 ## Contratos del arnés
 
-Dentro de `.harness-docs/` el repo bootstrappeado incluye:
+En layout `full`, el repo bootstrappeado materializa `.harness-docs/` con:
 
 - `specs.md` y `specs_policy.md`: flujo SDD y regla para decidir `sdd: true`
 - `model_interface.md`, `context_manager.md`, `execution_engine.md`, `memory_system.md`, `orchestration.md`
 - `tool_catalog.md`, `observation_policy.md`, `planning_model.md`
 - `budgets.md`, `contract_versions.md`, `frontend_adapters.md`, `loop_contract.md`
 
-No necesitas leer todo eso para usar el arnés día a día. Son el contrato del sistema y sirven sobre todo cuando cambias el propio harness o depuras comportamiento.
+En layout `thin`, esos mismos contratos viven en el runtime compartido del
+harness y se consultan con:
+
+```bash
+arufheim-harness docs list
+arufheim-harness docs show verification
+```
+
+Ese layout `thin` es el default recomendado para repos consumidores: mantiene
+el contrato accesible, baja el ruido del repo y evita duplicar documentación
+interna del harness por proyecto.
+
+No necesitas leer todo eso para usar el arnés día a día. Son el contrato del
+sistema y sirven sobre todo cuando cambias el propio harness o depuras
+comportamiento.
 
 ## Conectar clientes
 
@@ -366,8 +457,8 @@ El bootstrap ya deja `.vscode/mcp.json` en el repo. Si necesitas escribirlo a ma
   "servers": {
     "arufheim-harness": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["arufheim-harness", "--repo-path", "${workspaceFolder}", "--client", "vscode"]
+      "command": "node",
+      "args": [".harness/runtime/launch-global-runtime.mjs", "--repo-path", "${workspaceFolder}", "--client", "vscode"]
     }
   }
 }
@@ -398,13 +489,13 @@ El bootstrap deja `.mcp.json` en el repo para scope de proyecto.
 Manual por proyecto:
 
 ```bash
-claude mcp add --scope project harness -- npx --yes arufheim-harness --repo-path . --client claude-code
+claude mcp add --scope project harness -- node .harness/runtime/launch-global-runtime.mjs --repo-path . --client claude-code
 ```
 
 Manual apuntando a un repo específico:
 
 ```bash
-claude mcp add --scope project harness -- npx --yes arufheim-harness --repo-path /ruta/al/repo --client claude-code
+claude mcp add --scope project harness -- node /ruta/al/repo/.harness/runtime/launch-global-runtime.mjs --repo-path /ruta/al/repo --client claude-code
 ```
 
 Si usas binding global en Claude Desktop o Claude Code:
@@ -429,7 +520,7 @@ Qué esperar:
 
 Qué hace `init --global` para Codex:
 
-- puede escribir `~/.codex/config.toml` con un server MCP explícito
+- puede escribir `~/.codex/config.toml` con un server MCP explícito apuntando al shim global gestionado
 - el camino preferente sigue siendo la config repo-scoped en `.codex/config.toml`
 
 En la práctica, para Codex normalmente basta con:
@@ -462,6 +553,10 @@ Puedes crear un `harness.config.json` para comandos permitidos e ignores:
     "mode": "always_allow",
     "allowedTools": [],
     "allowedRisk": []
+  },
+  "testing": {
+    "fastCommand": "pnpm test:unit",
+    "integrationCommand": "pnpm smoke"
   },
   "agentRouting": {
     "defaultProvider": "anthropic",
@@ -522,6 +617,8 @@ Notas:
 - `repoPath` se resuelve por `--repo-path` o por la ubicación de `harness.config.json`; el fallback implícito a `cwd` ya no se usa cuando solo existe config global
 - si pasas `--config`, esa ruta manda
 - `permissionPolicy.mode` soporta `always_allow`, `always_ask` y `allow_list`
+- `testing.fastCommand` y `testing.integrationCommand` permiten fijar la capa rápida e integración sin depender de autodetección
+- si no configuras `testing.*`, `setup`/`repair` intentan autodetectar scripts/configs del repo y solo recomiendan `Vitest` cuando detectan un repo JS/TS sin suite rápida
 - `agentRouting` define defaults del leader para el modo `agent` (provider, effort y fast/deep models)
 
 Ejemplos CLI:
@@ -531,6 +628,8 @@ arufheim-harness config set permissionPolicy.mode always_ask --repo
 arufheim-harness config set allowedCommands '["pnpm test","npm test","ls"]' --repo
 arufheim-harness config set permissionPolicy.allowedRisk '["R1","R2"]' --repo
 arufheim-harness config set ignored '["node_modules/**",".git/**","dist/**"]' --repo
+arufheim-harness config set testing.fastCommand "pnpm test:unit" --repo
+arufheim-harness config set testing.integrationCommand "pnpm smoke" --repo
 ```
 
 ### PermissionPolicy
@@ -770,10 +869,13 @@ Luego:
 
 ```bash
 pnpm install
-./init.sh
+pnpm test
+pnpm smoke
+pnpm verify
 ```
 
 `npm` o `yarn` aquí sirven para instalar `pnpm`; el workflow de desarrollo de este repo usa `pnpm`.
+`pnpm verify` corre `typecheck -> test -> build -> smoke`.
 
 ## Antes de publicar
 
@@ -785,7 +887,9 @@ npm run release:check
 
 `release:check` exige worktree limpio por defecto y usa cache temporal para
 empaquetar, instalar el tarball en un repo temporal y validar `setup`, `status`,
-`repair` y `doctor` desde el artefacto real, así que no depende de `~/.npm`.
+`repair`, `doctor` y `docs show` desde el artefacto real. Además retira el
+paquete sembrador antes de ejecutar el shim global, así que comprueba que el
+runtime bundle siga siendo autocontenido de verdad.
 En CI se puede correr con `HARNESS_RELEASE_ALLOW_DIRTY=1` para saltar solo el
 gate de worktree limpio sin relajar el resto del chequeo.
 

@@ -129,7 +129,8 @@ try {
     /^explore_[a-z0-9_]+\.md$/,
     /^impl_[a-z0-9_]+\.md$/,
     /^review_[a-z0-9_]+\.md$/,
-    /^spec_[a-z0-9_]+\.md$/
+    /^spec_[a-z0-9_]+\.md$/,
+    /^head_[a-z0-9_]+\.md$/
   ];
 
   for (const entry of progressEntries) {
@@ -201,6 +202,13 @@ if "$PNPM_RUNNER" typecheck; then
   ok "Typecheck verde"
 else
   fail "Typecheck falló"
+  EXIT_CODE=1
+fi
+
+if "$PNPM_RUNNER" test; then
+  ok "Suite rápida verde"
+else
+  fail "Suite rápida falló"
   EXIT_CODE=1
 fi
 

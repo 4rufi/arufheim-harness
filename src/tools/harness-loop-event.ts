@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { ResolvedharnessConfig } from "../config.js";
+import { refreshActiveHeadSummary } from "../headroom.js";
 import { appendLoopEvent } from "../loop.js";
 import { JsonlLogger } from "../logger.js";
 import { enforcePermissionPolicy } from "../policy.js";
@@ -88,6 +89,7 @@ export function registerHarnessLoopEventTool(
             },
             config.loopPolicy,
           );
+          await refreshActiveHeadSummary(config.repoPath).catch(() => undefined);
 
           await recordRepoWrite(
             config.repoPath,

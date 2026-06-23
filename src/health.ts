@@ -6,6 +6,7 @@ import {
   parseHarnessConfigDocument,
   type ConfigScope,
   type HarnessClientId,
+  type ScaffoldLayout,
   type LocalScaffoldClient,
   type LoopPolicyConfig,
 } from "./config.js";
@@ -22,6 +23,16 @@ import {
   type InitTarget,
 } from "./init.js";
 import {
+  REPO_RUNTIME_LAUNCHER_PATH,
+  evaluateManagedGlobalRuntimeStatus,
+  getManagedGlobalRuntimeArtifactPath,
+  getManagedGlobalRuntimeMetadataPath,
+  getManagedGlobalRuntimeShimPath,
+  type ManagedRuntimeArtifactKind,
+  type ManagedRuntimeSourceKind,
+  type ManagedRuntimeStatus,
+} from "./runtime.js";
+import {
   parseFeatureHistoryText,
   parseFeatureListText,
   resolveWorkflowPaths,
@@ -33,6 +44,8 @@ import {
   readActiveLoopSummary,
   type LoopSummary,
 } from "./loop.js";
+import { inferScaffoldLayout } from "./scaffold-layout.js";
+import { HARNESS_VERSION } from "./version.js";
 
 const HARNESS_CONFIG_VERSION = 1;
 
@@ -76,6 +89,7 @@ type BindingState =
   | "portable"
   | "assumed"
   | "verified"
+  | "legacy"
   | "ambiguous"
   | "shadowed"
   | "invalid"
@@ -171,9 +185,11 @@ export interface DoctorSummary {
 export interface HarnessHealthSnapshot {
   repo_path: string;
   workflow_layout: "hidden" | "root-legacy";
+  scaffold_layout: ScaffoldLayout;
   archived_count: number;
   diagnostics: HealthDiagnostic[];
   alerts: HealthAlert[];
+  runtime_status: ManagedRuntimeStatus;
   binding_status: BindingStatus;
   client_verification: ClientVerificationSnapshot;
   client_readiness: ClientReadinessSnapshot;
@@ -186,12 +202,14 @@ export interface HarnessHealthSnapshot {
 interface StoredHealthSnapshot {
   last_verified_at: string;
   archived_count?: number;
+  runtime_status?: ManagedRuntimeStatus;
   binding_status: BindingStatus;
   client_verification: ClientVerificationSnapshot;
   client_readiness?: ClientReadinessSnapshot;
   doctor_summary: DoctorSummary;
   alerts: HealthAlert[];
   workflow_layout: "hidden" | "root-legacy";
+  scaffold_layout: ScaffoldLayout;
   verified_by: HealthRecordSource;
   input_signature?: StoredHealthInputSignature;
 }
@@ -220,6 +238,26 @@ interface ManagedFileCheck {
   severity: Exclude<HealthSeverity, "info">;
   blocking: boolean;
   repairAction: RepairAction;
+}
+
+function formatRuntimeSourceKind(kind: ManagedRuntimeSourceKind): string {
+  return kind;
+}
+
+function formatRuntimeArtifactKind(kind: ManagedRuntimeArtifactKind): string {
+  return kind;
+}
+
+export function formatRuntimeSourceBrief(
+  runtimeStatus: ManagedRuntimeStatus,
+): string {
+  return formatRuntimeSourceKind(runtimeStatus.runtime_source.kind);
+}
+
+export function formatRuntimeArtifactBrief(
+  runtimeStatus: ManagedRuntimeStatus,
+): string {
+  return formatRuntimeArtifactKind(runtimeStatus.runtime_artifact.kind);
 }
 
 type HealthClientKey = keyof ClientVerificationSnapshot;
@@ -260,6 +298,8 @@ interface DetectedClientBinding {
   detail?: string;
 }
 
+type BindingContractState = "managed" | "legacy" | "invalid";
+
 interface StoredClientVerificationRecord {
   client: HarnessClientId;
   repo_path: string;
@@ -292,7 +332,7 @@ const LOCAL_SCAFFOLD_TO_HEALTH_CLIENTS: Record<
   opencode: ["opencode"],
 };
 
-const CURRENT_CORE_FILES: ManagedFileCheck[] = [
+const FULL_CORE_FILES: ManagedFileCheck[] = [
   scaffoldFile("scaffold.agents", "AGENTS.md", "AGENTS.md", "error", true, ["all"]),
   scaffoldFile(
     "scaffold.checkpoints",
@@ -311,6 +351,14 @@ const CURRENT_CORE_FILES: ManagedFileCheck[] = [
     ["all"],
   ),
   scaffoldFile("scaffold.repo_init", "init.sh", "init.sh", "error", true, ["all"]),
+  scaffoldFile(
+    "scaffold.runtime_launcher",
+    ".harness/runtime/launch-global-runtime.mjs",
+    ".harness/runtime/launch-global-runtime.mjs",
+    "error",
+    true,
+    ["all"],
+  ),
   scaffoldFile(
     "docs.architecture",
     ".harness-docs/architecture.md",
@@ -449,7 +497,27 @@ const CURRENT_CORE_FILES: ManagedFileCheck[] = [
   ),
 ];
 
-const CURRENT_CLIENT_FILES: ManagedFileCheck[] = [
+const THIN_CORE_FILES: ManagedFileCheck[] = [
+  scaffoldFile("scaffold.agents", "AGENTS.md", "AGENTS.md", "error", true, ["all"]),
+  scaffoldFile(
+    "scaffold.config",
+    "harness.config.json",
+    "harness.config.json",
+    "error",
+    true,
+    ["all"],
+  ),
+  scaffoldFile(
+    "scaffold.runtime_launcher",
+    ".harness/runtime/launch-global-runtime.mjs",
+    ".harness/runtime/launch-global-runtime.mjs",
+    "error",
+    true,
+    ["all"],
+  ),
+];
+
+const FULL_CLIENT_FILES: ManagedFileCheck[] = [
   scaffoldFile("client.codex.instructions", "CODEX.md", "CODEX.md", "warn", false, ["codex"]),
   scaffoldFile("client.claude.instructions", "CLAUDE.md", "CLAUDE.md", "warn", false, ["claude"]),
   scaffoldFile(
@@ -489,6 +557,44 @@ const CURRENT_CLIENT_FILES: ManagedFileCheck[] = [
     "client.opencode.command",
     ".opencode/commands/harness.md",
     ".opencode/commands/harness.md",
+    "warn",
+    false,
+    ["opencode"],
+  ),
+  scaffoldFile(
+    "client.copilot.mcp",
+    ".vscode/mcp.json",
+    ".vscode/mcp.json",
+    "warn",
+    false,
+    ["copilot"],
+  ),
+];
+
+const THIN_CLIENT_FILES: ManagedFileCheck[] = [
+  scaffoldFile("client.codex.instructions", "CODEX.md", "CODEX.md", "warn", false, ["codex"]),
+  scaffoldFile("client.claude.instructions", "CLAUDE.md", "CLAUDE.md", "warn", false, ["claude"]),
+  scaffoldFile(
+    "client.copilot.instructions",
+    ".github/copilot-instructions.md",
+    ".github/copilot-instructions.md",
+    "warn",
+    false,
+    ["copilot"],
+  ),
+  scaffoldFile("client.claude.mcp", ".mcp.json", ".mcp.json", "warn", false, ["claude"]),
+  scaffoldFile(
+    "client.codex.config",
+    ".codex/config.toml",
+    ".codex/config.toml",
+    "warn",
+    false,
+    ["codex"],
+  ),
+  scaffoldFile(
+    "client.opencode.config",
+    ".opencode/opencode.json",
+    ".opencode/opencode.json",
     "warn",
     false,
     ["opencode"],
@@ -821,6 +927,65 @@ function extractClientArg(args: unknown): HarnessClientId | null {
   return null;
 }
 
+function readCommandString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function isLegacyHarnessArgs(args: unknown): boolean {
+  return (
+    Array.isArray(args) &&
+    args.some(
+      (value) =>
+        value === "arufheim-harness" ||
+        value === "npx" ||
+        value === "--yes",
+    )
+  );
+}
+
+function classifyRepoLauncherContract(
+  command: unknown,
+  args: unknown,
+): BindingContractState {
+  const commandString = readCommandString(command);
+  if (
+    commandString === "node" &&
+    Array.isArray(args) &&
+    args[0] === REPO_RUNTIME_LAUNCHER_PATH
+  ) {
+    return "managed";
+  }
+
+  if (
+    commandString === "npx" ||
+    commandString === "arufheim-harness" ||
+    isLegacyHarnessArgs(args)
+  ) {
+    return "legacy";
+  }
+
+  return "invalid";
+}
+
+function classifyOpenCodeLauncherContract(command: unknown): BindingContractState {
+  if (
+    Array.isArray(command) &&
+    command[0] === "node" &&
+    command[1] === REPO_RUNTIME_LAUNCHER_PATH
+  ) {
+    return "managed";
+  }
+
+  if (
+    Array.isArray(command) &&
+    command.some((value) => value === "npx" || value === "arufheim-harness")
+  ) {
+    return "legacy";
+  }
+
+  return "invalid";
+}
+
 type GlobalBindingClientKey = keyof BindingStatus["global"];
 
 function isPortableRepoBinding(repoPathArg: string | null): boolean {
@@ -882,6 +1047,21 @@ function readCodexHarnessSection(text: string): string | null {
   return match ? match[1] : null;
 }
 
+function readCodexCommand(sectionText: string): string | null {
+  const match = sectionText.match(/^\s*command\s*=\s*"([^"]+)"/m);
+  return match ? match[1] : null;
+}
+
+function readCodexArgs(sectionText: string): string[] {
+  const match = sectionText.match(/^\s*args\s*=\s*\[([\s\S]*?)\]/m);
+  if (!match) {
+    return [];
+  }
+  return Array.from(match[1].matchAll(/"([^"]*)"/g)).map(
+    (entry) => entry[1] ?? "",
+  );
+}
+
 function readCodexFlagArg(sectionText: string, flagName: string): string | null {
   const escapedFlag = flagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const separateArgMatch = sectionText.match(
@@ -915,6 +1095,36 @@ function readCodexClientArg(sectionText: string): HarnessClientId | null {
   return null;
 }
 
+function classifyCodexRepoLauncherContract(sectionText: string): BindingContractState {
+  const command = readCodexCommand(sectionText);
+  const args = readCodexArgs(sectionText);
+  if (command === "node" && args[0] === REPO_RUNTIME_LAUNCHER_PATH) {
+    return "managed";
+  }
+  if (
+    command === "npx" ||
+    command === "arufheim-harness" ||
+    args.includes("arufheim-harness")
+  ) {
+    return "legacy";
+  }
+  return "invalid";
+}
+
+function classifyManagedGlobalShimContract(command: unknown): BindingContractState {
+  const commandString = readCommandString(command);
+  if (!commandString) {
+    return "invalid";
+  }
+  if (path.resolve(commandString) === path.resolve(getManagedGlobalRuntimeShimPath())) {
+    return "managed";
+  }
+  if (commandString === "npx" || commandString === "arufheim-harness") {
+    return "legacy";
+  }
+  return "invalid";
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
@@ -924,22 +1134,34 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readExpectedLocalScaffoldClients(
+async function readExpectedLocalScaffoldState(
   repoPath: string,
-): Promise<Set<LocalScaffoldClient> | null> {
+): Promise<{
+  clients: Set<LocalScaffoldClient> | null;
+  layout: ScaffoldLayout;
+}> {
   const configPath = path.join(repoPath, "harness.config.json");
   if (!(await fileExists(configPath))) {
-    return null;
+    return {
+      clients: null,
+      layout: await inferScaffoldLayout(repoPath),
+    };
   }
 
   try {
     const raw = await readFile(configPath, "utf8");
     const parsed = parseHarnessConfigDocument(JSON.parse(raw));
-    return new Set(
-      parsed.scaffold?.localClients ?? DEFAULT_LOCAL_SCAFFOLD_CLIENTS,
-    );
+    return {
+      clients: new Set(
+        parsed.scaffold?.localClients ?? DEFAULT_LOCAL_SCAFFOLD_CLIENTS,
+      ),
+      layout: await inferScaffoldLayout(repoPath, parsed),
+    };
   } catch {
-    return null;
+    return {
+      clients: null,
+      layout: await inferScaffoldLayout(repoPath),
+    };
   }
 }
 
@@ -1444,12 +1666,14 @@ async function writeStoredHealthSnapshot(
     JSON.stringify(
       {
         last_verified_at: verifiedAt,
+        runtime_status: snapshot.runtime_status,
         binding_status: snapshot.binding_status,
         client_verification: snapshot.client_verification,
         client_readiness: snapshot.client_readiness,
         doctor_summary: snapshot.doctor_summary,
         alerts: snapshot.alerts,
         workflow_layout: snapshot.workflow_layout,
+        scaffold_layout: snapshot.scaffold_layout,
         archived_count: snapshot.archived_count,
         verified_by: verifiedBy,
         input_signature: inputSignature,
@@ -1463,12 +1687,16 @@ async function writeStoredHealthSnapshot(
 
 function buildScaffoldChecks(
   workflowLayout: WorkflowPaths["layout"],
+  scaffoldLayout: ScaffoldLayout,
   expectedLocalClients: Set<LocalScaffoldClient> | null,
 ): ManagedFileCheck[] {
   return workflowLayout === "hidden"
     ? [
-        ...CURRENT_CORE_FILES,
-        ...filterManagedFileChecks(CURRENT_CLIENT_FILES, expectedLocalClients),
+        ...(scaffoldLayout === "thin" ? THIN_CORE_FILES : FULL_CORE_FILES),
+        ...filterManagedFileChecks(
+          scaffoldLayout === "thin" ? THIN_CLIENT_FILES : FULL_CLIENT_FILES,
+          expectedLocalClients,
+        ),
       ]
     : [
         ...LEGACY_CORE_FILES,
@@ -1566,17 +1794,19 @@ async function collectHealthInputSignature(
 ): Promise<StoredHealthInputSignature> {
   repoPath = normalizeRepoPath(repoPath);
   const workflowPaths = await resolveWorkflowPaths(repoPath);
-  const expectedLocalClients = await readExpectedLocalScaffoldClients(repoPath);
+  const scaffoldState = await readExpectedLocalScaffoldState(repoPath);
   const files = new Map<string, { mode: "exists" | "mtime" }>();
 
   for (const check of buildScaffoldChecks(
     workflowPaths.layout,
-    expectedLocalClients,
+    scaffoldState.layout,
+    scaffoldState.clients,
   )) {
     const absolutePath = path.join(repoPath, check.path);
     const mode =
       check.path === "AGENTS.md" ||
       check.path === "harness.config.json" ||
+      check.path === ".harness/runtime/launch-global-runtime.mjs" ||
       check.path === ".mcp.json" ||
       check.path === ".codex/config.toml" ||
       check.path === ".opencode/opencode.json" ||
@@ -1601,6 +1831,9 @@ async function collectHealthInputSignature(
     getClaudeDesktopConfigPath(),
     getClaudeCodeConfigPath(),
     getCodexConfigPath(),
+    getManagedGlobalRuntimeArtifactPath(),
+    getManagedGlobalRuntimeMetadataPath(),
+    getManagedGlobalRuntimeShimPath(),
   ]) {
     pushObservedFile(files, globalConfigPath, "mtime");
   }
@@ -1621,6 +1854,23 @@ async function isStoredHealthSnapshotFresh(
   repoPath: string,
   stored: StoredHealthSnapshot,
 ): Promise<boolean> {
+  if (stored.runtime_status?.version && stored.runtime_status.version !== HARNESS_VERSION) {
+    return false;
+  }
+  if (
+    stored.runtime_status &&
+    typeof (stored.runtime_status as { runtime_source?: unknown }).runtime_source !==
+      "object"
+  ) {
+    return false;
+  }
+  if (
+    stored.runtime_status &&
+    typeof (stored.runtime_status as { runtime_artifact?: unknown })
+      .runtime_artifact !== "object"
+  ) {
+    return false;
+  }
   if (
     !stored.input_signature ||
     stored.input_signature.version !== HEALTH_INPUT_SIGNATURE_VERSION
@@ -1696,10 +1946,14 @@ async function detectRuntimeBinding(
       if (await fileExists(filePath)) {
         const raw = await readFile(filePath, "utf8");
         const parsed = parseJsonc(raw) as {
-          servers?: Record<string, { args?: unknown }>;
+          servers?: Record<string, { command?: unknown; args?: unknown }>;
         };
         const server = parsed.servers?.["arufheim-harness"];
-        if (server && extractRepoPathArg(server.args) !== null) {
+        if (
+          server &&
+          classifyRepoLauncherContract(server.command, server.args) === "managed" &&
+          extractRepoPathArg(server.args) !== null
+        ) {
           return {
             client: "vscode",
             key: "vscode",
@@ -1719,10 +1973,14 @@ async function detectRuntimeBinding(
       if (await fileExists(filePath)) {
         const raw = await readFile(filePath, "utf8");
         const parsed = JSON.parse(raw) as {
-          mcpServers?: Record<string, { args?: unknown }>;
+          mcpServers?: Record<string, { command?: unknown; args?: unknown }>;
         };
         const server = parsed.mcpServers?.["arufheim-harness"];
-        if (server && extractRepoPathArg(server.args) !== null) {
+        if (
+          server &&
+          classifyRepoLauncherContract(server.command, server.args) === "managed" &&
+          extractRepoPathArg(server.args) !== null
+        ) {
           return {
             client: "claude-code",
             key: "claude_code",
@@ -1742,7 +2000,11 @@ async function detectRuntimeBinding(
       if (await fileExists(filePath)) {
         const raw = await readFile(filePath, "utf8");
         const section = readCodexHarnessSection(raw);
-        if (section && readCodexRepoPathArg(section) !== null) {
+        if (
+          section &&
+          classifyCodexRepoLauncherContract(section) === "managed" &&
+          readCodexRepoPathArg(section) !== null
+        ) {
           return {
             client: "codex",
             key: "codex",
@@ -1767,7 +2029,11 @@ async function detectRuntimeBinding(
         const server = parsed.mcp?.["arufheim-harness"];
         const command =
           server && Array.isArray(server.command) ? server.command : null;
-        if (server && extractRepoPathArg(command) !== null) {
+        if (
+          server &&
+          classifyOpenCodeLauncherContract(command) === "managed" &&
+          extractRepoPathArg(command) !== null
+        ) {
           return {
             client: "opencode",
             key: "opencode",
@@ -1788,11 +2054,15 @@ async function detectRuntimeBinding(
     if (await fileExists(filePath)) {
       const raw = await readFile(filePath, "utf8");
       const parsed = parseJsonc(raw) as {
-        servers?: Record<string, { args?: unknown }>;
+        servers?: Record<string, { command?: unknown; args?: unknown }>;
       };
       const server = parsed.servers?.["arufheim-harness"];
       const repoPathArg = server ? extractRepoPathArg(server.args) : null;
-      if (server && repoPathArg !== null) {
+      if (
+        server &&
+        classifyManagedGlobalShimContract(server.command) === "managed" &&
+        repoPathArg !== null
+      ) {
         const bindingClass = classifyRepoBinding("vscode", repoPathArg, repoPath);
         return {
           client: "vscode",
@@ -1814,11 +2084,15 @@ async function detectRuntimeBinding(
     if (await fileExists(filePath)) {
       const raw = await readFile(filePath, "utf8");
       const parsed = parseJsonc(raw) as {
-        mcpServers?: Record<string, { args?: unknown }>;
+        mcpServers?: Record<string, { command?: unknown; args?: unknown }>;
       };
       const server = parsed.mcpServers?.["arufheim-harness"];
       const repoPathArg = server ? extractRepoPathArg(server.args) : null;
-      if (server && repoPathArg !== null) {
+      if (
+        server &&
+        classifyManagedGlobalShimContract(server.command) === "managed" &&
+        repoPathArg !== null
+      ) {
         const bindingClass = classifyRepoBinding(
           "claude_desktop",
           repoPathArg,
@@ -1844,11 +2118,15 @@ async function detectRuntimeBinding(
     if (await fileExists(filePath)) {
       const raw = await readFile(filePath, "utf8");
       const parsed = parseJsonc(raw) as {
-        mcpServers?: Record<string, { args?: unknown }>;
+        mcpServers?: Record<string, { command?: unknown; args?: unknown }>;
       };
       const server = parsed.mcpServers?.["arufheim-harness"];
       const repoPathArg = server ? extractRepoPathArg(server.args) : null;
-      if (server && repoPathArg !== null) {
+      if (
+        server &&
+        classifyManagedGlobalShimContract(server.command) === "managed" &&
+        repoPathArg !== null
+      ) {
         const bindingClass = classifyRepoBinding(
           "claude_code",
           repoPathArg,
@@ -1875,7 +2153,12 @@ async function detectRuntimeBinding(
       const raw = await readFile(filePath, "utf8");
       const section = readCodexHarnessSection(raw);
       const repoPathArg = section ? readCodexRepoPathArg(section) : null;
-      if (section && repoPathArg !== null) {
+      if (
+        section &&
+        classifyManagedGlobalShimContract(readCodexCommand(section)) ===
+          "managed" &&
+        repoPathArg !== null
+      ) {
         const bindingClass = classifyRepoBinding("codex", repoPathArg, repoPath);
         return {
           client: "codex",
@@ -1901,6 +2184,8 @@ export async function evaluateHarnessHealth(
 ): Promise<HarnessHealthSnapshot> {
   repoPath = normalizeRepoPath(repoPath);
   const workflowPaths = await resolveWorkflowPaths(repoPath);
+  const scaffoldState = await readExpectedLocalScaffoldState(repoPath);
+  const scaffoldLayout = scaffoldState.layout;
   const detectedAt = new Date().toISOString();
   const diagnostics: HealthDiagnostic[] = [];
   const stored = await readStoredHealthSnapshot(repoPath);
@@ -1909,7 +2194,7 @@ export async function evaluateHarnessHealth(
   const clientBindings: Partial<Record<HealthClientKey, DetectedClientBinding>> =
     {};
   const currentConfigScope: ConfigScope = "repo";
-  const expectedLocalClients = await readExpectedLocalScaffoldClients(repoPath);
+  const expectedLocalClients = scaffoldState.clients;
   const expectedHealthClients = deriveExpectedHealthClients(expectedLocalClients);
   let parsedFeatures: WorkflowFeature[] = [];
   let archivedFeatures: WorkflowFeature[] = [];
@@ -1934,9 +2219,60 @@ export async function evaluateHarnessHealth(
     claude_code: globalStatusForAbsent(),
     codex: globalStatusForAbsent(),
   };
+  const runtimeStatus = await evaluateManagedGlobalRuntimeStatus({
+    verifiedAt: detectedAt,
+  });
+
+  diagnostics.push(
+    createDiagnostic({
+      code: "runtime.managed_global",
+      ok: runtimeStatus.state === "ok",
+      severity: "error",
+      blocking: true,
+      message: "runtime global gestionado disponible",
+      detail:
+        runtimeStatus.state === "ok"
+          ? runtimeStatus.detail ?? runtimeStatus.path
+          : runtimeStatus.detail ?? runtimeStatus.state,
+      detectedAt,
+      fixCommand:
+        runtimeStatus.state === "ok"
+          ? undefined
+          : runtimeStatus.fix_command,
+    }),
+  );
+
+  if (
+    runtimeStatus.state === "ok" &&
+    runtimeStatus.runtime_source.kind !== "package_install"
+  ) {
+    const sourceKind = runtimeStatus.runtime_source.kind;
+    const sourcePath =
+      runtimeStatus.runtime_source.package_root ??
+      runtimeStatus.runtime_source.entrypoint;
+    diagnostics.push(
+      createDiagnostic({
+        code: "runtime.managed_global.source",
+        ok: false,
+        severity: "warn",
+        blocking: false,
+        message:
+          sourceKind === "linked_dev"
+            ? "runtime global gestionado sembrado desde un link de desarrollo"
+            : sourceKind === "workspace_dev"
+              ? "runtime global gestionado sembrado desde un workspace local"
+              : "runtime global gestionado con procedencia no ideal para distribución",
+        detail: `${formatRuntimeSourceKind(sourceKind)} -> ${sourcePath}`,
+        detectedAt,
+        fixHint:
+          "Para distribución o validación de release, reinstala el runtime desde una instalación publicada del paquete y vuelve a correr `arufheim-harness setup --global-runtime`.",
+      }),
+    );
+  }
 
   const scaffoldChecks = buildScaffoldChecks(
     workflowPaths.layout,
+    scaffoldLayout,
     expectedLocalClients,
   );
   await pushFileChecks(diagnostics, repoPath, scaffoldChecks, detectedAt);
@@ -1961,6 +2297,16 @@ export async function evaluateHarnessHealth(
       }),
     );
   }
+
+  diagnostics.push(
+    createDiagnostic({
+      code: "scaffold.layout",
+      ok: true,
+      message: "scaffold layout detectado",
+      detail: scaffoldLayout,
+      detectedAt,
+    }),
+  );
 
   diagnostics.push(
     createDiagnostic({
@@ -2224,12 +2570,13 @@ export async function evaluateHarnessHealth(
           server && Array.isArray(server.command)
             ? server.command
             : null;
+        const contractState = classifyOpenCodeLauncherContract(command);
         const ok =
           parsed.$schema === "https://opencode.ai/config.json" &&
           typeof server === "object" &&
           extractRepoPathArg(command) !== null;
-        repoScoped.opencode = ok;
-        if (ok && server) {
+        repoScoped.opencode = ok && contractState === "managed";
+        if (repoScoped.opencode && server) {
           clientBindings.opencode = {
             client: "opencode",
             key: "opencode",
@@ -2260,6 +2607,24 @@ export async function evaluateHarnessHealth(
               : repoUpdateAction(["opencode"]),
           }),
         );
+        if (server && ok && contractState !== "managed") {
+          diagnostics.push(
+            createDiagnostic({
+              code: "bindings.repo.opencode.runtime_contract",
+              ok: false,
+              severity: "warn",
+              blocking: false,
+              message: "opencode.json usa el launcher repo-scoped gestionado",
+              detail:
+                contractState === "legacy"
+                  ? "binding legacy detectado; usa npx/PATH en vez del launcher portable"
+                  : "falta `command: [\"node\", \".harness/runtime/launch-global-runtime.mjs\", ...]`",
+              detectedAt,
+              fixCommand: formatLocalRepairCommand(repoPath, ["opencode"]),
+              repairAction: repoUpdateAction(["opencode"]),
+            }),
+          );
+        }
         if (server) {
           pushClientIdentityDiagnostic(diagnostics, {
             code: "bindings.repo.opencode.identity",
@@ -2296,13 +2661,17 @@ export async function evaluateHarnessHealth(
       try {
         const raw = await readFile(vscodeConfigPath, "utf8");
         const parsed = parseJsonc(raw) as {
-          servers?: Record<string, { args?: unknown }>;
+          servers?: Record<string, { command?: unknown; args?: unknown }>;
         };
         const server = parsed.servers?.["arufheim-harness"];
         const repoPathArg = extractRepoPathArg(server?.args);
+        const contractState = classifyRepoLauncherContract(
+          server?.command,
+          server?.args,
+        );
         const ok = repoPathArg !== null;
-        repoScoped.vscode = ok;
-        if (ok && server) {
+        repoScoped.vscode = ok && contractState === "managed";
+        if (repoScoped.vscode && server) {
           clientBindings.vscode = {
             client: "vscode",
             key: "vscode",
@@ -2333,6 +2702,24 @@ export async function evaluateHarnessHealth(
               : repoUpdateAction(["copilot"]),
           }),
         );
+        if (server && ok && contractState !== "managed") {
+          diagnostics.push(
+            createDiagnostic({
+              code: "bindings.repo.vscode.runtime_contract",
+              ok: false,
+              severity: "warn",
+              blocking: false,
+              message: "vscode mcp usa el launcher repo-scoped gestionado",
+              detail:
+                contractState === "legacy"
+                  ? "binding legacy detectado; usa npx/PATH en vez del launcher portable"
+                  : "falta `command: \"node\"` con `.harness/runtime/launch-global-runtime.mjs` como primer argumento",
+              detectedAt,
+              fixCommand: formatLocalRepairCommand(repoPath, ["copilot"]),
+              repairAction: repoUpdateAction(["copilot"]),
+            }),
+          );
+        }
         if (server) {
           pushClientIdentityDiagnostic(diagnostics, {
             code: "bindings.repo.vscode.identity",
@@ -2369,13 +2756,17 @@ export async function evaluateHarnessHealth(
       try {
         const raw = await readFile(claudeProjectMcpPath, "utf8");
         const parsed = JSON.parse(raw) as {
-          mcpServers?: Record<string, { args?: unknown }>;
+          mcpServers?: Record<string, { command?: unknown; args?: unknown }>;
         };
         const server = parsed.mcpServers?.["arufheim-harness"];
         const repoPathArg = extractRepoPathArg(server?.args);
+        const contractState = classifyRepoLauncherContract(
+          server?.command,
+          server?.args,
+        );
         const ok = repoPathArg !== null;
-        repoScoped.claude = ok;
-        if (ok && server) {
+        repoScoped.claude = ok && contractState === "managed";
+        if (repoScoped.claude && server) {
           clientBindings.claude_code = {
             client: "claude-code",
             key: "claude_code",
@@ -2406,6 +2797,24 @@ export async function evaluateHarnessHealth(
               : repoUpdateAction(["claude"]),
           }),
         );
+        if (server && ok && contractState !== "managed") {
+          diagnostics.push(
+            createDiagnostic({
+              code: "bindings.repo.claude.runtime_contract",
+              ok: false,
+              severity: "warn",
+              blocking: false,
+              message: "claude project mcp usa el launcher repo-scoped gestionado",
+              detail:
+                contractState === "legacy"
+                  ? "binding legacy detectado; usa npx/PATH en vez del launcher portable"
+                  : "falta `command: \"node\"` con `.harness/runtime/launch-global-runtime.mjs` como primer argumento",
+              detectedAt,
+              fixCommand: formatLocalRepairCommand(repoPath, ["claude"]),
+              repairAction: repoUpdateAction(["claude"]),
+            }),
+          );
+        }
         if (server) {
           pushClientIdentityDiagnostic(diagnostics, {
             code: "bindings.repo.claude.identity",
@@ -2443,9 +2852,12 @@ export async function evaluateHarnessHealth(
         const raw = await readFile(codexProjectConfigPath, "utf8");
         const section = readCodexHarnessSection(raw);
         const repoPathArg = section ? readCodexRepoPathArg(section) : null;
+        const contractState = section
+          ? classifyCodexRepoLauncherContract(section)
+          : "invalid";
         const ok = repoPathArg !== null;
-        repoScoped.codex = ok;
-        if (ok && section) {
+        repoScoped.codex = ok && contractState === "managed";
+        if (repoScoped.codex && section) {
           clientBindings.codex = {
             client: "codex",
             key: "codex",
@@ -2476,6 +2888,24 @@ export async function evaluateHarnessHealth(
               : repoUpdateAction(["codex"]),
           }),
         );
+        if (section && ok && contractState !== "managed") {
+          diagnostics.push(
+            createDiagnostic({
+              code: "bindings.repo.codex.runtime_contract",
+              ok: false,
+              severity: "warn",
+              blocking: false,
+              message: "codex project config usa el launcher repo-scoped gestionado",
+              detail:
+                contractState === "legacy"
+                  ? "binding legacy detectado; usa npx/PATH en vez del launcher portable"
+                  : "falta `command = \"node\"` con `.harness/runtime/launch-global-runtime.mjs` como primer argumento",
+              detectedAt,
+              fixCommand: formatLocalRepairCommand(repoPath, ["codex"]),
+              repairAction: repoUpdateAction(["codex"]),
+            }),
+          );
+        }
         if (section) {
           pushClientIdentityDiagnostic(diagnostics, {
             code: "bindings.repo.codex.identity",
@@ -2539,8 +2969,11 @@ export async function evaluateHarnessHealth(
         check.key,
         expectedHealthClients,
       );
+      if (!expectedForRepo) {
+        continue;
+      }
       if (check.repoOverride()) {
-        if (expectedForRepo && await fileExists(check.filePath)) {
+        if (await fileExists(check.filePath)) {
           globalBindings[check.key] = {
             state: "shadowed",
             detail: "override repo-scoped presente; el binding global no bloquea este repo",
@@ -2566,7 +2999,7 @@ export async function evaluateHarnessHealth(
         const raw = await readFile(check.filePath, "utf8");
         const parsed = parseJsonc(raw) as Record<string, unknown>;
         const rootObject = parsed[check.rootKey] as
-          | Record<string, { args?: unknown }>
+          | Record<string, { command?: unknown; args?: unknown }>
           | undefined;
         const server = rootObject?.["arufheim-harness"];
 
@@ -2577,6 +3010,36 @@ export async function evaluateHarnessHealth(
 
         const repoPathArg = extractRepoPathArg(server.args);
         const expectedClient = fromHealthClientKey(check.key);
+        const contractState = classifyManagedGlobalShimContract(server.command);
+        if (contractState === "legacy") {
+          globalBindings[check.key] = {
+            state: "legacy",
+            detail: "binding legacy detectado; usa npx/PATH en vez del shim gestionado",
+          };
+          diagnostics.push(
+            createDiagnostic({
+              code: check.code,
+              ok: false,
+              severity: "warn",
+              blocking: false,
+              message: check.message,
+              detail: globalBindings[check.key].detail,
+              detectedAt,
+              fixCommand: formatGlobalRepairCommand(check.repairClients),
+              repairAction: globalClientAction(check.repairClients),
+            }),
+          );
+          pushClientIdentityDiagnostic(diagnostics, {
+            code: `${check.code}.identity`,
+            detectedAt,
+            expectedClient,
+            actualClient: extractClientArg(server.args),
+            message: `${check.message} declara --client ${expectedClient}`,
+            fixCommand: formatGlobalRepairCommand(check.repairClients),
+            repairAction: globalClientAction(check.repairClients),
+          });
+          continue;
+        }
         const bindingClass = classifyRepoBinding(check.key, repoPathArg, repoPath);
         const detectedBinding: DetectedClientBinding = {
           client: expectedClient,
@@ -2673,7 +3136,9 @@ export async function evaluateHarnessHealth(
           globalBindings[check.key] = {
             state: "ambiguous",
             detail:
-              repoPathArg === null
+              contractState !== "managed"
+                ? "server global no usa el shim absoluto gestionado"
+                : repoPathArg === null
                 ? "server global sin --repo-path explícito"
                 : `server global apunta a '${repoPathArg}' en vez de '${repoPath}' o un binding portable verificable`,
           };
@@ -2734,96 +3199,48 @@ export async function evaluateHarnessHealth(
         "codex",
         expectedHealthClients,
       );
-      if (repoScoped.codex) {
-        if (expectedForRepo) {
-          globalBindings.codex = {
-            state: "shadowed",
-            detail: "override repo-scoped presente; el binding global no bloquea este repo",
-          };
-          diagnostics.push(
-            createDiagnostic({
-              code: "bindings.global.codex.unambiguous",
-              ok: true,
-              message: "Codex global harness resuelve el repo actual",
-              detail:
-                "override repo-scoped presente; el binding global no bloquea este repo",
-              detectedAt,
-            }),
-          );
-        }
+      if (!expectedForRepo) {
+        // El repo no espera Codex; ignoramos el binding global para no contaminar health/readiness.
+      } else if (repoScoped.codex) {
+        globalBindings.codex = {
+          state: "shadowed",
+          detail: "override repo-scoped presente; el binding global no bloquea este repo",
+        };
+        diagnostics.push(
+          createDiagnostic({
+            code: "bindings.global.codex.unambiguous",
+            ok: true,
+            message: "Codex global harness resuelve el repo actual",
+            detail:
+              "override repo-scoped presente; el binding global no bloquea este repo",
+            detectedAt,
+          }),
+        );
       } else {
         try {
           const raw = await readFile(codexUserConfigPath, "utf8");
           const section = readCodexHarnessSection(raw);
           if (section) {
             const repoPathArg = readCodexRepoPathArg(section);
-            const bindingClass = classifyRepoBinding("codex", repoPathArg, repoPath);
-            const detectedBinding: DetectedClientBinding = {
-              client: "codex",
-              key: "codex",
-              repo_path: repoPath,
-              source: "global",
-              verification_mode:
-                bindingClass === "assumed"
-                  ? "runtime_required"
-                  : "config_sufficient",
-              signature: buildBindingSignature(section.trim()),
-              config_scope: currentConfigScope,
-              detail: repoPathArg ?? undefined,
-            };
-            if (bindingClass === "explicit" || bindingClass === "portable") {
-              clientBindings.codex = detectedBinding;
+            const contractState = classifyManagedGlobalShimContract(
+              readCodexCommand(section),
+            );
+            if (contractState === "legacy") {
               globalBindings.codex = {
-                state: bindingClass === "portable" ? "portable" : "ok",
-                detail: repoPathArg ?? undefined,
+                state: "legacy",
+                detail: "binding legacy detectado; usa npx/PATH en vez del shim gestionado",
               };
               diagnostics.push(
                 createDiagnostic({
                   code: "bindings.global.codex.unambiguous",
-                  ok: true,
-                  message: "Codex global harness resuelve el repo actual",
-                  detail: repoPathArg ?? undefined,
-                  detectedAt,
-                }),
-              );
-              pushClientIdentityDiagnostic(diagnostics, {
-                code: "bindings.global.codex.unambiguous.identity",
-                detectedAt,
-                expectedClient: "codex",
-                actualClient: readCodexClientArg(section),
-                message: "Codex global harness declara --client codex",
-                fixCommand: formatGlobalRepairCommand(["codex"]),
-                repairAction: globalClientAction(["codex"]),
-              });
-            } else if (bindingClass === "assumed" && repoPathArg !== null) {
-              clientBindings.codex = detectedBinding;
-              const verificationCurrent = isStoredVerificationCurrent(
-                repoPath,
-                detectedBinding,
-                storedVerifications.codex,
-              );
-              globalBindings.codex = verificationCurrent
-                ? {
-                    state: "verified",
-                    detail: `binding asumido validado por arranque real (${storedVerifications.codex?.verified_at ?? "sin timestamp"})`,
-                  }
-                : {
-                    state: "assumed",
-                    detail: assumedBindingDetail("codex", repoPathArg),
-                  };
-              diagnostics.push(
-                createDiagnostic({
-                  code: "bindings.global.codex.unambiguous",
-                  ok: verificationCurrent,
+                  ok: false,
                   severity: "warn",
                   blocking: false,
                   message: "Codex global harness resuelve el repo actual",
                   detail: globalBindings.codex.detail,
                   detectedAt,
-                  fixHint: verificationCurrent
-                    ? undefined
-                    :
-                    "Valida manualmente `repo_path` en Codex o prefiere la config repo-scoped `.codex/config.toml`.",
+                  fixCommand: formatGlobalRepairCommand(["codex"]),
+                  repairAction: globalClientAction(["codex"]),
                 }),
               );
               pushClientIdentityDiagnostic(diagnostics, {
@@ -2836,11 +3253,91 @@ export async function evaluateHarnessHealth(
                 repairAction: globalClientAction(["codex"]),
               });
             } else {
-              if (expectedForRepo) {
+              const bindingClass = classifyRepoBinding("codex", repoPathArg, repoPath);
+              const detectedBinding: DetectedClientBinding = {
+                client: "codex",
+                key: "codex",
+                repo_path: repoPath,
+                source: "global",
+                verification_mode:
+                  bindingClass === "assumed"
+                    ? "runtime_required"
+                    : "config_sufficient",
+                signature: buildBindingSignature(section.trim()),
+                config_scope: currentConfigScope,
+                detail: repoPathArg ?? undefined,
+              };
+              if (bindingClass === "explicit" || bindingClass === "portable") {
+                clientBindings.codex = detectedBinding;
+                globalBindings.codex = {
+                  state: bindingClass === "portable" ? "portable" : "ok",
+                  detail: repoPathArg ?? undefined,
+                };
+                diagnostics.push(
+                  createDiagnostic({
+                    code: "bindings.global.codex.unambiguous",
+                    ok: true,
+                    message: "Codex global harness resuelve el repo actual",
+                    detail: repoPathArg ?? undefined,
+                    detectedAt,
+                  }),
+                );
+                pushClientIdentityDiagnostic(diagnostics, {
+                  code: "bindings.global.codex.unambiguous.identity",
+                  detectedAt,
+                  expectedClient: "codex",
+                  actualClient: readCodexClientArg(section),
+                  message: "Codex global harness declara --client codex",
+                  fixCommand: formatGlobalRepairCommand(["codex"]),
+                  repairAction: globalClientAction(["codex"]),
+                });
+              } else if (bindingClass === "assumed" && repoPathArg !== null) {
+                clientBindings.codex = detectedBinding;
+                const verificationCurrent = isStoredVerificationCurrent(
+                  repoPath,
+                  detectedBinding,
+                  storedVerifications.codex,
+                );
+                globalBindings.codex = verificationCurrent
+                  ? {
+                      state: "verified",
+                      detail: `binding asumido validado por arranque real (${storedVerifications.codex?.verified_at ?? "sin timestamp"})`,
+                    }
+                  : {
+                      state: "assumed",
+                      detail: assumedBindingDetail("codex", repoPathArg),
+                    };
+                diagnostics.push(
+                  createDiagnostic({
+                    code: "bindings.global.codex.unambiguous",
+                    ok: verificationCurrent,
+                    severity: "warn",
+                    blocking: false,
+                    message: "Codex global harness resuelve el repo actual",
+                    detail: globalBindings.codex.detail,
+                    detectedAt,
+                    fixHint: verificationCurrent
+                      ? undefined
+                      :
+                      "Valida manualmente `repo_path` en Codex o prefiere la config repo-scoped `.codex/config.toml`.",
+                  }),
+                );
+                pushClientIdentityDiagnostic(diagnostics, {
+                  code: "bindings.global.codex.unambiguous.identity",
+                  detectedAt,
+                  expectedClient: "codex",
+                  actualClient: readCodexClientArg(section),
+                  message: "Codex global harness declara --client codex",
+                  fixCommand: formatGlobalRepairCommand(["codex"]),
+                  repairAction: globalClientAction(["codex"]),
+                });
+              } else {
                 globalBindings.codex = {
                   state: "ambiguous",
                   detail:
-                    repoPathArg === null
+                    contractState !== "managed"
+                      ? "server global no usa el shim absoluto gestionado"
+                      : repoPathArg === null
                       ? "server global sin --repo-path explícito"
                       : `server global apunta a '${repoPathArg}' en vez de '${repoPath}' o un binding portable verificable`,
                 };
@@ -2870,27 +3367,25 @@ export async function evaluateHarnessHealth(
             }
           }
         } catch {
-          if (expectedForRepo) {
-            globalBindings.codex = {
-              state: "invalid",
+          globalBindings.codex = {
+            state: "invalid",
+            detail: "TOML inválido o no legible",
+          };
+          diagnostics.push(
+            createDiagnostic({
+              code: "bindings.global.codex.unambiguous",
+              ok: false,
+              severity: "error",
+              blocking: true,
+              message: "Codex global harness resuelve el repo actual",
               detail: "TOML inválido o no legible",
-            };
-            diagnostics.push(
-              createDiagnostic({
-                code: "bindings.global.codex.unambiguous",
-                ok: false,
-                severity: "error",
-                blocking: true,
-                message: "Codex global harness resuelve el repo actual",
-                detail: "TOML inválido o no legible",
-                detectedAt,
-                fixCommand: formatForcedGlobalRepairCommand(["codex"]),
-                fixHint:
-                  "Si quieres preservar el archivo roto y regenerar solo la entrada gestionada, usa --force-managed-global; si no, corrígelo manualmente.",
-                repairAction: globalClientAction(["codex"]),
-              }),
-            );
-          }
+              detectedAt,
+              fixCommand: formatForcedGlobalRepairCommand(["codex"]),
+              fixHint:
+                "Si quieres preservar el archivo roto y regenerar solo la entrada gestionada, usa --force-managed-global; si no, corrígelo manualmente.",
+              repairAction: globalClientAction(["codex"]),
+            }),
+          );
         }
       }
     }
@@ -2968,55 +3463,61 @@ export async function evaluateHarnessHealth(
     );
   }
 
-  const bindingStatus = computeBindingStatus({
-    repoScoped,
-    global: globalBindings,
-  });
-  const clientVerification = buildClientVerificationSnapshot(
-    repoPath,
-    clientBindings,
-    storedVerifications,
-    expectedHealthClients,
-  );
-  const alerts = diagnostics
-    .map((diagnostic) => toAlert(diagnostic))
-    .filter((alert): alert is HealthAlert => alert !== null);
-  const clientReadiness = buildClientReadinessSnapshot({
-    alerts,
-    clientVerification,
-    expectedClients: expectedHealthClients,
-  });
-  const doctorSummary = summarizeDiagnostics(diagnostics);
-  const lastVerifiedAt = options.persist
-    ? detectedAt
-    : stored?.last_verified_at ?? null;
-  const loopSummary = await readActiveLoopSummary(repoPath);
-  const snapshot: HarnessHealthSnapshot = {
-    repo_path: repoPath,
-    workflow_layout: workflowPaths.layout,
-    archived_count: archivedCount,
-    diagnostics,
-    alerts,
-    binding_status: bindingStatus,
-    client_verification: clientVerification,
-    client_readiness: clientReadiness,
-    doctor_summary: doctorSummary,
-    degraded_mode:
-      alerts.length > 0 && alerts.every((alert) => !alert.blocking),
-    last_verified_at: lastVerifiedAt,
-    loop_summary: loopSummary,
-  };
+  return finalizeHealthSnapshot();
 
-  if (options.persist) {
-    await writeStoredHealthSnapshot(
+  async function finalizeHealthSnapshot(): Promise<HarnessHealthSnapshot> {
+    const bindingStatus = computeBindingStatus({
+      repoScoped,
+      global: globalBindings,
+    });
+    const clientVerification = buildClientVerificationSnapshot(
       repoPath,
-      snapshot,
-      options.verifiedBy ?? "doctor",
-      detectedAt,
+      clientBindings,
+      storedVerifications,
+      expectedHealthClients,
     );
-  }
+    const alerts = diagnostics
+      .map((diagnostic) => toAlert(diagnostic))
+      .filter((alert): alert is HealthAlert => alert !== null);
+    const clientReadiness = buildClientReadinessSnapshot({
+      alerts,
+      clientVerification,
+      expectedClients: expectedHealthClients,
+    });
+    const doctorSummary = summarizeDiagnostics(diagnostics);
+    const lastVerifiedAt = options.persist
+      ? detectedAt
+      : stored?.last_verified_at ?? null;
+    const loopSummary = await readActiveLoopSummary(repoPath);
+    const snapshot: HarnessHealthSnapshot = {
+      repo_path: repoPath,
+      workflow_layout: workflowPaths.layout,
+      scaffold_layout: scaffoldLayout,
+      archived_count: archivedCount,
+      diagnostics,
+      alerts,
+      runtime_status: runtimeStatus,
+      binding_status: bindingStatus,
+      client_verification: clientVerification,
+      client_readiness: clientReadiness,
+      doctor_summary: doctorSummary,
+      degraded_mode:
+        alerts.length > 0 && alerts.every((alert) => !alert.blocking),
+      last_verified_at: lastVerifiedAt,
+      loop_summary: loopSummary,
+    };
 
-  return snapshot;
+    if (options.persist) {
+      await writeStoredHealthSnapshot(
+        repoPath,
+        snapshot,
+        options.verifiedBy ?? "doctor",
+        detectedAt,
+      );
+    }
+
+    return snapshot;
+  }
 }
 
 export async function readPersistedHarnessHealth(
@@ -3026,7 +3527,9 @@ export async function readPersistedHarnessHealth(
     HarnessHealthSnapshot,
     | "repo_path"
     | "workflow_layout"
+    | "scaffold_layout"
     | "alerts"
+    | "runtime_status"
     | "binding_status"
     | "client_verification"
     | "client_readiness"
@@ -3042,15 +3545,28 @@ export async function readPersistedHarnessHealth(
   if (!stored || !(await isStoredHealthSnapshotFresh(repoPath, stored))) {
     return null;
   }
+  const scaffoldState = await readExpectedLocalScaffoldState(repoPath);
   const expectedHealthClients = deriveExpectedHealthClients(
-    await readExpectedLocalScaffoldClients(repoPath),
+    scaffoldState.clients,
   );
+  const runtimeStatus =
+    stored.runtime_status &&
+    typeof (stored.runtime_status as { runtime_artifact?: unknown }).runtime_artifact ===
+      "object" &&
+    typeof (stored.runtime_status as { runtime_source?: unknown }).runtime_source ===
+      "object"
+      ? stored.runtime_status
+      : await evaluateManagedGlobalRuntimeStatus({
+          verifiedAt: stored.last_verified_at,
+        });
 
   return {
     repo_path: repoPath,
     workflow_layout: stored.workflow_layout,
+    scaffold_layout: stored.scaffold_layout ?? scaffoldState.layout,
     archived_count: stored.archived_count ?? 0,
     alerts: stored.alerts,
+    runtime_status: runtimeStatus,
     binding_status: stored.binding_status,
     client_verification: stored.client_verification,
     client_readiness:

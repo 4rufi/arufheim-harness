@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { loadConfig } from "./config.js";
 import { runConfigCommand } from "./config-command.js";
+import { runDocs } from "./docs-command.js";
 import { runDoctor } from "./doctor.js";
 import {
   evaluateHarnessHealth,
@@ -16,11 +17,13 @@ import {
   initTarget,
   isGlobalInit,
   isUpdateInit,
+  readLayoutArg,
   readInitRepoPath,
   runInit,
 } from "./init.js";
 import { JsonlLogger } from "./logger.js";
 import { runRepair } from "./repair.js";
+import { runMigrate } from "./migrate.js";
 import { registerRepoResources } from "./resources/repo-resources.js";
 import { runSimulate } from "./simulate.js";
 import { runSetup } from "./setup.js";
@@ -39,10 +42,27 @@ import { registerMemoryTools } from "./tools/memory.js";
 import { registerProgressTools } from "./tools/progress.js";
 import { registerWriteFileTool } from "./tools/write-file.js";
 import { runTui } from "./tui.js";
+import { runVerify } from "./verify.js";
 import { HARNESS_VERSION } from "./version.js";
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+
+  if (argv[0] === "version" || argv[0] === "--version" || argv[0] === "-v") {
+    process.stdout.write(`${HARNESS_VERSION}\n`);
+    return;
+  }
+
+  if (
+    argv.length > 1 &&
+    (argv.includes("--help") || argv.includes("-h")) &&
+    ["init", "setup", "repair", "migrate", "verify", "status"].includes(
+      argv[0] ?? "",
+    )
+  ) {
+    runHelp();
+    return;
+  }
 
   if (argv[0] === "init" || argv[0] === "--init") {
     const initArgv = argv.slice(1);
@@ -51,7 +71,16 @@ async function main(): Promise<void> {
     const update = isUpdateInit(initArgv);
     const forceManagedGlobal = initArgv.includes("--force-managed-global");
     const target = initTarget(initArgv);
-    await runInit({ repoPath, global, update, forceManagedGlobal, target });
+    const layout = readLayoutArg(initArgv);
+    await runInit({
+      repoPath,
+      global,
+      update,
+      forceManagedGlobal,
+      target,
+      layout,
+      ensureManagedRuntime: true,
+    });
     return;
   }
 
@@ -66,8 +95,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (argv[0] === "migrate") {
+    await runMigrate(argv.slice(1));
+    return;
+  }
+
   if (argv[0] === "repair") {
     await runRepair(argv.slice(1));
+    return;
+  }
+
+  if (argv[0] === "verify") {
+    await runVerify(argv.slice(1));
     return;
   }
 
@@ -89,6 +128,11 @@ async function main(): Promise<void> {
 
   if (argv[0] === "config") {
     await runConfigCommand(argv.slice(1));
+    return;
+  }
+
+  if (argv[0] === "docs") {
+    await runDocs(argv.slice(1));
     return;
   }
 

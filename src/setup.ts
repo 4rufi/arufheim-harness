@@ -18,8 +18,10 @@ import {
   formatHealthBrief,
   getHealthClientLabel,
 } from "./health.js";
+import { refreshActiveHeadSummary } from "./headroom.js";
 import { seedMissingActiveLoop } from "./loop.js";
 import {
+  readLayoutArg,
   readInitRepoPath,
   renderManagedGlobalRecoverySummary,
   renderGlobalActivationSteps,
@@ -28,10 +30,29 @@ import {
   type ManagedGlobalWriteOptions,
   type InitTarget,
 } from "./init.js";
+import { ensureManagedGlobalRuntime } from "./runtime.js";
 
 export async function runSetup(argv: string[] = []): Promise<void> {
+  if (argv.includes("--global-runtime")) {
+    const runtime = await ensureManagedGlobalRuntime();
+    process.stdout.write(
+      [
+        "",
+        "setup summary",
+        "",
+        "  mode: global-runtime",
+        `  runtime: ${runtime.shimPath}`,
+        `  version: ${runtime.version}`,
+        `  installed_at: ${runtime.installedAt}`,
+        "",
+      ].join("\n"),
+    );
+    return;
+  }
+
   const forceUpdate = argv.includes("--update");
   const forceManagedGlobal = argv.includes("--force-managed-global");
+  const layout = readLayoutArg(argv);
 
   if (argv.includes("--global")) {
     const globalClients = parseGlobalClientSelection(argv);
@@ -50,6 +71,7 @@ export async function runSetup(argv: string[] = []): Promise<void> {
       : { preferredClients: [], targets: [] };
     if (repoContext) {
       await seedMissingActiveLoop(repoContext.repoPath);
+      await refreshActiveHeadSummary(repoContext.repoPath).catch(() => undefined);
     }
     if (repoContext) {
       await primeDeterministicGlobalBindingsForRepo(
@@ -89,12 +111,15 @@ export async function runSetup(argv: string[] = []): Promise<void> {
 
   const repoPath = readInitRepoPath(argv);
   const targets = normalizeTargets(parseLocalClientSelection(argv));
+  const runtime = await ensureManagedGlobalRuntime();
 
   for (const target of targets) {
     await runInit({
       repoPath,
       update: forceUpdate ? true : false,
       target,
+      layout,
+      ensureManagedRuntime: false,
     });
   }
 
@@ -106,11 +131,14 @@ export async function runSetup(argv: string[] = []): Promise<void> {
         repoPath,
         update: true,
         target,
+        layout,
+        ensureManagedRuntime: false,
       });
     }
   }
 
   await seedMissingActiveLoop(repoPath).catch(() => undefined);
+  await refreshActiveHeadSummary(repoPath).catch(() => undefined);
 
   await primeDeterministicRepoVerifications(
     repoPath,
@@ -130,6 +158,8 @@ export async function runSetup(argv: string[] = []): Promise<void> {
       `  clients: ${targets.join(", ")}`,
       `  update: ${forceUpdate ? "forced" : "auto"}`,
       `  layout: ${snapshot.workflow_layout}`,
+      `  scaffold: ${snapshot.scaffold_layout}`,
+      `  runtime: ${runtime.shimPath}`,
       `  health: ${formatHealthBrief(snapshot)}`,
       `  alerts: ${snapshot.doctor_summary.active_alerts}`,
       `  binding: ${snapshot.binding_status.state}`,

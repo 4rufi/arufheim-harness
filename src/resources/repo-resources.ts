@@ -7,12 +7,15 @@ import { evaluateHarnessHealth } from "../health.js";
 import { readLoopStatus } from "../loop.js";
 import { JsonlLogger } from "../logger.js";
 import { assertExistingPathWithinRepo } from "../safety.js";
+import { SHARED_DOC_TOPICS } from "../scaffold-layout.js";
+import { listSharedDocs, readSharedDoc } from "../shared-docs.js";
 
 const RAW_CONFIG_RESOURCE_URI = "harness://config/raw";
 const RESOLVED_CONFIG_RESOURCE_URI = "harness://config/resolved";
 const HEALTH_RESOURCE_URI = "harness://health";
 const ACTIVE_LOOP_RESOURCE_URI = "harness://loop/active";
 const LOG_RESOURCE_URI = "harness://logs/main";
+const DOCS_INDEX_RESOURCE_URI = "harness://docs/index";
 
 const MAX_LOG_BYTES = 128 * 1024;
 
@@ -149,6 +152,76 @@ export function registerRepoResources(
       });
     },
   );
+
+  server.registerResource(
+    "shared_docs_index",
+    DOCS_INDEX_RESOURCE_URI,
+    {
+      title: "harness Shared Docs Index",
+      description: "List of shared harness docs available from the installation runtime.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      assertExpectedUri(uri.href, DOCS_INDEX_RESOURCE_URI);
+
+      return withResourceLogging(
+        logger,
+        "shared_docs_index",
+        uri.href,
+        async () => {
+          const docs = await listSharedDocs();
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: "application/json",
+                text: JSON.stringify({ docs }, null, 2),
+              },
+            ],
+          };
+        },
+      );
+    },
+  );
+
+  for (const [topic] of SHARED_DOC_TOPICS) {
+    const docUri = `harness://docs/${topic}`;
+    server.registerResource(
+      `shared_doc_${topic}`,
+      docUri,
+      {
+        title: `harness Shared Doc: ${topic}`,
+        description: `Shared harness documentation topic '${topic}'.`,
+        mimeType: "text/markdown",
+      },
+      async (uri) => {
+        assertExpectedUri(uri.href, docUri);
+
+        return withResourceLogging(
+          logger,
+          `shared_doc_${topic}`,
+          uri.href,
+          async () => {
+            const doc = await readSharedDoc(topic);
+            return {
+              contents: [
+                {
+                  uri: uri.href,
+                  mimeType: "text/markdown",
+                  text: doc.text,
+                  _meta: {
+                    topic: doc.topic,
+                    title: doc.title,
+                    relativePath: doc.relative_path,
+                  },
+                },
+              ],
+            };
+          },
+        );
+      },
+    );
+  }
 
   server.registerResource(
     "main_log",

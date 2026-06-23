@@ -4,8 +4,8 @@
     "arufheim-harness": {
       "type": "local",
       "command": [
-        "npx",
-        "arufheim-harness",
+        "node",
+        ".harness/runtime/launch-global-runtime.mjs",
         "--repo-path",
         ".",
         "--client",

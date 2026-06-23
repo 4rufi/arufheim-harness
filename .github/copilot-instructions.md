@@ -18,6 +18,7 @@ No narres pasos internos. Muestra resultado, no proceso.
 
 1. Llama `mcp_arufheim-harness_harness_status` con `mode: "brief_minimal"` y usa `startup_brief` como snapshot inicial.
 2. Si hay feature activa, llama `mcp_arufheim-harness_harness_loop_status`.
-3. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
-4. Lee solo los archivos mínimos que falten para el caso actual.
-5. Aplica el flujo definido en `.github/prompts/leader.prompt.md`.
+3. Si existe `.harness/progress/head_<feature>.md`, úsalo como resumen corto antes de abrir artifacts largos.
+4. Ejecuta la verificación estándar del repo antes de tocar código si el flujo lo exige.
+5. Lee solo los archivos mínimos que falten para el caso actual.
+6. Aplica el flujo definido en `.github/prompts/leader.prompt.md`.

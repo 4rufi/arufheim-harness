@@ -4,7 +4,7 @@ description: Filtra .harness/feature_list.json por proyecto/scope y define qué 
 tools: Read, Write, Edit, Glob, Grep
 ---
 
-<!-- harness-agents-v4 -->
+<!-- harness-agents-v7 -->
 
 # Scoper
 

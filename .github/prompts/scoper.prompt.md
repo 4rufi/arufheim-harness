@@ -8,7 +8,7 @@ tools:
   - mcp_arufheim-harness_harness_status
 ---
 
-<!-- harness-agents-v4 -->
+<!-- harness-agents-v7 -->
 
 # Scoper
 

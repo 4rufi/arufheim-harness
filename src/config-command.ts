@@ -49,6 +49,8 @@ const SETTABLE_KEYS = new Set([
   "agentRouting.models.gemini-cli.deep",
   "agentRouting.models.gemini-code-assist.fast",
   "agentRouting.models.gemini-code-assist.deep",
+  "testing.fastCommand",
+  "testing.integrationCommand",
 ]);
 
 const ARRAY_KEYS = new Set([
@@ -205,6 +207,8 @@ function printConfigHelp(): void {
     '  arufheim-harness config set permissionPolicy.mode always_ask --repo',
     '  arufheim-harness config set allowedCommands \'["pnpm test","npm test"]\' --repo',
     '  arufheim-harness config set permissionPolicy.allowedRisk \'["R1","R2"]\' --repo',
+    '  arufheim-harness config set testing.fastCommand "pnpm test:unit" --repo',
+    '  arufheim-harness config set testing.integrationCommand "pnpm smoke" --repo',
   ];
 
   process.stdout.write(lines.join("\n") + "\n");

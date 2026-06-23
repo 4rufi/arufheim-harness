@@ -2,9 +2,9 @@
   "servers": {
     "arufheim-harness": {
       "type": "stdio",
-      "command": "npx",
+      "command": "node",
       "args": [
-        "arufheim-harness",
+        ".harness/runtime/launch-global-runtime.mjs",
         "--repo-path",
         "${workspaceFolder}",
         "--client",

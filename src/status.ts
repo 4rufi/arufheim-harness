@@ -8,6 +8,8 @@ import {
   evaluateHarnessHealth,
   formatClientReadinessBrief,
   formatHealthBrief,
+  formatRuntimeArtifactBrief,
+  formatRuntimeSourceBrief,
   listClientReadinessEntries,
   readPersistedHarnessHealth,
   type HarnessHealthSnapshot,
@@ -35,6 +37,7 @@ type StatusMode = "full" | "brief_only" | "brief_minimal";
 type StatusHealth = Pick<
   HarnessHealthSnapshot,
   | "alerts"
+  | "runtime_status"
   | "binding_status"
   | "client_verification"
   | "client_readiness"
@@ -42,6 +45,7 @@ type StatusHealth = Pick<
   | "degraded_mode"
   | "last_verified_at"
   | "archived_count"
+  | "scaffold_layout"
 >;
 
 interface BuildHarnessStatusInput {
@@ -114,6 +118,7 @@ async function readStatusHealth(
     if (stored) {
       return {
         alerts: stored.alerts,
+        runtime_status: stored.runtime_status,
         binding_status: stored.binding_status,
         client_verification: stored.client_verification,
         client_readiness: stored.client_readiness,
@@ -121,6 +126,7 @@ async function readStatusHealth(
         degraded_mode: stored.degraded_mode,
         last_verified_at: stored.last_verified_at,
         archived_count: stored.archived_count,
+        scaffold_layout: stored.scaffold_layout,
       };
     }
 
@@ -130,6 +136,7 @@ async function readStatusHealth(
     });
     return {
       alerts: refreshed.alerts,
+      runtime_status: refreshed.runtime_status,
       binding_status: refreshed.binding_status,
       client_verification: refreshed.client_verification,
       client_readiness: refreshed.client_readiness,
@@ -137,12 +144,14 @@ async function readStatusHealth(
       degraded_mode: refreshed.degraded_mode,
       last_verified_at: refreshed.last_verified_at,
       archived_count: refreshed.archived_count,
+      scaffold_layout: refreshed.scaffold_layout,
     };
   }
 
   const fresh = await evaluateHarnessHealth(repoPath);
   return {
     alerts: fresh.alerts,
+    runtime_status: fresh.runtime_status,
     binding_status: fresh.binding_status,
     client_verification: fresh.client_verification,
     client_readiness: fresh.client_readiness,
@@ -150,6 +159,7 @@ async function readStatusHealth(
     degraded_mode: fresh.degraded_mode,
     last_verified_at: fresh.last_verified_at,
     archived_count: fresh.archived_count,
+    scaffold_layout: fresh.scaffold_layout,
   };
 }
 
@@ -164,6 +174,8 @@ function buildMinimalStartupBrief(input: {
     `repo=${input.repoPath}`,
     `config_scope=${input.configScope}`,
     `layout=${input.workflowLayout}`,
+    `scaffold=${input.health.scaffold_layout}`,
+    `runtime=${input.health.runtime_status.state}`,
     `health=${formatStatusHealthBrief(
       input.repoPath,
       input.workflowLayout,
@@ -185,8 +197,10 @@ function formatStatusHealthBrief(
   return formatHealthBrief({
     repo_path: repoPath,
     workflow_layout: workflowLayout,
+    scaffold_layout: health.scaffold_layout,
     diagnostics: [],
     alerts: health.alerts,
+    runtime_status: health.runtime_status,
     binding_status: health.binding_status,
     client_verification: health.client_verification,
     client_readiness: health.client_readiness,
@@ -241,6 +255,8 @@ function buildStartupBrief(input: {
     `repo=${input.repoPath}`,
     `config_scope=${input.configScope}`,
     `layout=${input.workflowLayout}`,
+    `scaffold=${input.health.scaffold_layout}`,
+    `runtime=${input.health.runtime_status.state}`,
     `health=${formatStatusHealthBrief(input.repoPath, input.workflowLayout, input.health)}`,
     `active=${activeLabel}`,
     `next=${input.nextStep}`,
@@ -282,6 +298,8 @@ export async function buildHarnessStatus(
         startup_brief: startupBrief,
         repo_path: repoPath,
         config_scope: input.configScope,
+        scaffold_layout: health.scaffold_layout,
+        runtime_status: health.runtime_status,
         doctor_summary: health.doctor_summary,
       },
       meta: {
@@ -338,6 +356,7 @@ export async function buildHarnessStatus(
     config_path: path.resolve(input.configPath),
     config_scope: input.configScope,
     workflow_layout: workflowPaths.layout,
+    scaffold_layout: health.scaffold_layout,
     active_feature: activeFeature,
     next_step: nextStep,
     pending_count: pendingFeatures.length,
@@ -346,6 +365,7 @@ export async function buildHarnessStatus(
     inbox_count: inboxFiles.length,
     archived_count: health.archived_count,
     alerts: health.alerts,
+    runtime_status: health.runtime_status,
     binding_status: health.binding_status,
     client_verification: health.client_verification,
     client_readiness: health.client_readiness,
@@ -382,6 +402,7 @@ export async function buildHarnessStatus(
       config_path: path.resolve(input.configPath),
       config_scope: input.configScope,
       workflow_layout: workflowPaths.layout,
+      scaffold_layout: health.scaffold_layout,
       active_feature: activeFeature,
       spec_ready_features: specReadyFeatures,
       blocked_features: blockedFeatures,
@@ -394,6 +415,7 @@ export async function buildHarnessStatus(
       session_metrics: sessionMetrics,
       permission_policy: summarizePermissionPolicy(input.permissionPolicy),
       alerts: health.alerts,
+      runtime_status: health.runtime_status,
       binding_status: health.binding_status,
       client_verification: health.client_verification,
       client_readiness: health.client_readiness,
@@ -442,11 +464,15 @@ function buildStatusText(
     `  repo: ${content.repo_path}`,
     `  config: ${content.config_path} (${content.config_scope})`,
     `  layout: ${content.workflow_layout}`,
+    `  scaffold: ${content.scaffold_layout}`,
+    `  runtime: ${(content.runtime_status as HarnessHealthSnapshot["runtime_status"]).state} (${(content.runtime_status as HarnessHealthSnapshot["runtime_status"]).path}) artifact=${formatRuntimeArtifactBrief(content.runtime_status as HarnessHealthSnapshot["runtime_status"])} source=${formatRuntimeSourceBrief(content.runtime_status as HarnessHealthSnapshot["runtime_status"])}`,
     `  health: ${formatStatusHealthBrief(
       String(content.repo_path),
       content.workflow_layout as "hidden" | "root-legacy",
       {
         alerts: content.alerts as HarnessHealthSnapshot["alerts"],
+        runtime_status:
+          content.runtime_status as HarnessHealthSnapshot["runtime_status"],
         binding_status:
           content.binding_status as HarnessHealthSnapshot["binding_status"],
         client_verification:
@@ -462,6 +488,9 @@ function buildStatusText(
             : null,
         archived_count:
           typeof content.archived_count === "number" ? content.archived_count : 0,
+        scaffold_layout:
+          (content.scaffold_layout as HarnessHealthSnapshot["scaffold_layout"]) ??
+          "thin",
       },
     )}`,
     `  active: ${activeFeature ? `${activeFeature.id}:${activeFeature.name}:${activeFeature.status}` : "none"}`,

@@ -484,6 +484,161 @@
       "sdd": false,
       "status": "done",
       "closed_at": "2026-06-18T03:15:57.332Z"
+    },
+    {
+      "id": 38,
+      "name": "tdd_partial_and_headroom_phase1",
+      "title": "TDD parcial por capas y headroom interno fase 1",
+      "description": "Formaliza TDD por capas, añade suite rápida con Vitest, autodetección de fastCommand/integrationCommand y un artifact head_<feature>.md consumido por agent y prompts.",
+      "acceptance": [
+        "El repo separa suite rápida y smoke, y verify/init exigen ambas capas",
+        "README, docs, prompts y scaffold explicitan la policy TDD parcial por capas",
+        "setup/repair detectan o respetan testing.fastCommand/testing.integrationCommand y solo recomiendan Vitest en repos JS/TS sin suite rápida",
+        "Existe .harness/progress/head_<feature>.md como artifact interno refrescable y agent lo consume antes de abrir artifacts largos",
+        "Smoke y tests unit/contract cubren TDD policy, autodetección y refresh de headroom sin romper surfaces públicas"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-22T13:44:04-04:00"
+    },
+    {
+      "id": 39,
+      "name": "reduce_testing_preflight_noise",
+      "title": "Reducir ruido de preflight de testing",
+      "description": "Hace que prompts, headroom y docs del harness traten la suite rápida como feedback contextual y no como chequeo universal previo a editar.",
+      "acceptance": [
+        "El scaffold deja claro que la suite rápida se usa cuando el repo ya la declara o cuando el cambio la necesita, no como preflight universal",
+        "Los prompts del implementer dejan de sugerir chequeos de versiones/binarios como `pnpm --version` o `vitest --version` salvo fallo real del primer comando",
+        "El headroom y la guidance de testing bajan la presión sobre `Vitest` y `pnpm` cuando no aplica",
+        "README/docs/checkpoints siguen formalizando TDD parcial sin inducir ruido operativo innecesario"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-22T13:59:27-04:00"
+    },
+    {
+      "id": 40,
+      "name": "thin_default_and_explicit_migration",
+      "title": "Thin default con migración explícita y docs compartidas",
+      "description": "Introduce `thin` como layout por defecto para repos nuevos, añade `migrate --to thin`, `verify`, docs compartidas por CLI/MCP y hace que health/setup/repair respeten el layout sin empujar pnpm a repos consumidores.",
+      "acceptance": [
+        "`setup` usa `thin` por defecto en repos nuevos y `setup --layout full` mantiene el scaffold completo actual",
+        "`setup --update` conserva el layout actual del repo y no migra de forma implícita",
+        "Existe `migrate --to thin` con `--dry-run` y `--json`, preserva overrides locales y poda solo assets gestionados seguros",
+        "Existe `verify` como entrypoint recomendado para repos consumidores sin depender de `init.sh` materializado",
+        "`doctor --json`, `status`, `harness_status` y `harness://health` exponen `scaffold_layout`",
+        "Existen `docs list`, `docs show <topic>`, `harness://docs/index` y `harness://docs/<topic>` para servir docs compartidas",
+        "`setup --global` sigue detectando repos harness válidos sin depender de `.harness-docs/` o `CHECKPOINTS.md`",
+        "La guidance de testing para repos consumidores respeta `npm`/`yarn`/`pnpm` según el repo y no empuja `pnpm` por reflejo"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-22T15:24:16-04:00"
+    },
+    {
+      "id": 41,
+      "name": "thin_migration_and_health_scope_fixes",
+      "title": "Fixes de migración thin y scope de health por cliente",
+      "description": "Corrige la migración real full->thin y evita que doctor degrade repos con localClients acotados por globals fuera de scope.",
+      "acceptance": [
+        "`migrate --to thin` funciona en ejecución real, no solo en dry-run, y puede podar assets full gestionados dejando directorios vacíos limpios",
+        "Existe cobertura automática para la migración real full->thin",
+        "Un repo con `scaffold.localClients=[\"codex\"]` no degrada por bindings globales de Claude/Copilot/OpenCode fuera de su scope local",
+        "La cobertura automática fija que el health repo-local solo alerte por clientes esperados para ese repo"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-22T15:49:17-04:00"
+    },
+    {
+      "id": 42,
+      "name": "remove_consumer_init_npx_fallback",
+      "title": "Quitar fallback a npx en init.sh de repos consumidores",
+      "description": "Hace que el init.sh scaffoldeado para repos consumidores falle claro sin red si arufheim-harness no está disponible localmente, en vez de caer a npx implícitamente.",
+      "acceptance": [
+        "El init.sh scaffoldeado para repos consumidores ya no ejecuta `npx --yes arufheim-harness ...` como fallback implícito",
+        "El init.sh scaffoldeado sigue soportando `ARUFHEIM_HARNESS_ENTRY` y `arufheim-harness` en PATH",
+        "Si el harness no está disponible localmente, el error explica cómo usar `verify`, `ARUFHEIM_HARNESS_ENTRY` o instalar/linkear el binario sin depender de descarga implícita",
+        "Smoke y docs quedan alineados con el contrato offline-first del repo consumidor"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-22T17:31:09-04:00"
+    },
+    {
+      "id": 43,
+      "name": "release_1_3_0_prep",
+      "title": "Preparar release 1.3.0",
+      "description": "Ejecuta la pasada automatizada y manual mínima, alinea release-readiness y corta la versión/changelog para dejar el publish gate listo.",
+      "acceptance": [
+        "`release:check` pasa sobre el estado actual como preflight de release",
+        "Un repo limpio instalado desde el paquete actual valida `setup --layout full` y el contrato nuevo de `init.sh`",
+        "`release-readiness.json`, `package.json` y `CHANGELOG.md` quedan alineados con la versión a publicar",
+        "El repo queda listo para correr `release:publish-check` sin reservas de contrato"
+      ],
+      "status": "done",
+      "closed_at": "2026-06-22T18:06:53-04:00"
+    },
+    {
+      "id": 44,
+      "name": "managed_global_runtime_and_reproducible_bindings",
+      "title": "Runtime global gestionado y bindings reproducibles",
+      "description": "Sustituye el uso de npx/PATH ambiguo por un runtime global gestionado y launchers repo-portables, manteniendo el harness fuera de las dependencias del proyecto.",
+      "acceptance": [
+        "Existe un runtime global gestionado bajo el root global del harness y se puede instalar o reparar sin depender de npx",
+        "Los bindings globales usan el shim absoluto gestionado y los repo-scoped usan un launcher portable dentro del repo",
+        "setup, repair, doctor, status y harness_status exponen y migran el estado del runtime nuevo sin romper compatibilidad legacy",
+        "El scaffold full usa el shim global antes de PATH y no vuelve a usar npx",
+        "README, help y smoke quedan alineados con el contrato nuevo y setup --help deja de ejecutar setup"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-23T09:56:17-04:00"
+    },
+    {
+      "id": 45,
+      "name": "managed_runtime_boot_contract_hardening",
+      "title": "Hardening del boot real del runtime gestionado",
+      "description": "Corrige el runtime global gestionado para que arranque fuera del repo, evita auto-destrucción al reinstalar, unifica la resolución del global root y añade smoke real de shim/launcher.",
+      "acceptance": [
+        "El shim global gestionado arranca el harness fuera del repo sin depender de un dist copiado sin dependencias",
+        "Reinstalar o reparar el runtime desde el propio entrypoint gestionado no borra la fuente que necesita para regenerarse",
+        "Launcher repo-scoped y runtime usan una sola resolución de global root y no divergen por HOME/XDG",
+        "El smoke ejecuta realmente el shim global y el launcher repo-scoped contra un XDG temporal y falla si ese contrato se rompe"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-23T10:55:33-04:00"
+    },
+    {
+      "id": 46,
+      "name": "runtime_source_visibility_and_release_gate",
+      "title": "Procedencia visible del runtime y gate real de release",
+      "description": "Hace visible si el runtime gestionado viene de un package install o de un workspace/link de desarrollo, degrada el caso dev con warning explícito y endurece el gate de release con el tarball real.",
+      "acceptance": [
+        "runtime metadata, health y surfaces JSON exponen la procedencia del runtime gestionado con al menos package_install, workspace_dev y linked_dev",
+        "Un runtime sembrado desde workspace o link de desarrollo aparece como warning explícito y no se confunde con un runtime publicado ideal para distribución",
+        "release:check valida el runtime gestionado sembrado desde el tarball actual en un home temporal y falla si no queda como package_install",
+        "README y checklist manual explican la diferencia entre runtime de desarrollo y runtime publicado"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-23T11:18:00-04:00"
+    },
+    {
+      "id": 47,
+      "name": "global_runtime_self_contained_bundle",
+      "title": "Bundle global autocontenido para el runtime gestionado",
+      "description": "Desacopla el runtime global del paquete sembrador sembrando un bundle JS autocontenido en el root global, preserva launchers portables y embebe las docs compartidas necesarias para layout thin.",
+      "acceptance": [
+        "`setup --global-runtime` siembra un bundle global autocontenido y el shim lo ejecuta sin depender del `dist/index.js` del paquete sembrador",
+        "`runtime_status` expone `runtime_artifact` y `runtime_source` por separado, y metadata legacy queda `stale` con fix automático",
+        "`docs list/show` y `harness://docs/*` siguen funcionando aunque el paquete sembrador ya no exista",
+        "`release:check` valida que el shim global sigue operativo después de retirar el paquete instalado del repo temporal"
+      ],
+      "sdd": true,
+      "status": "done",
+      "closed_at": "2026-06-23T12:09:00-04:00"
     }
   ]
 }

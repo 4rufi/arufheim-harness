@@ -3,18 +3,18 @@
 > Este archivo se vacía al cerrar cada sesión y se mueve a `history.md`.
 > Mientras trabajas, **mantenlo actualizado en tiempo real**, no al final.
 
-- **Feature en curso:** _ninguna_
-- **Inicio:** _—_
-- **Agente:** _—_
+- **Feature en curso:** `_Sin feature activa._`
+- **Inicio:** `_Sin sesión activa._`
+- **Agente:** `_Sin sesión activa._`
 
 ## Plan
 
-_—_
+_Sin plan activo._
 
 ## Bitácora
 
-_—_
+_Sin entradas._
 
 ## Próximo paso
 
-_—_
+_Nada pendiente._

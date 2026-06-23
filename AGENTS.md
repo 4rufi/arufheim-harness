@@ -10,11 +10,13 @@ Mapa operativo del repo.
 4. Lee `.harness/progress/README.md` solo si vas a tocar el flujo de sesión.
 5. Si la feature activa tiene `"sdd": true`, lee `.harness-docs/specs.md`.
 6. Si estás decidiendo si una feature nueva usa SDD, lee `.harness-docs/specs_policy.md`.
+7. Si existe `.harness/progress/head_<feature>.md`, úsalo como resumen corto antes de abrir artifacts largos.
 
 ## Leer solo si hace falta
 
 - `.harness/feature_history.json`: contexto histórico
 - `.harness/progress/history.md`: sesiones anteriores
+- `.harness/progress/head_<feature>.md`: foco corto del intento activo
 - `.harness/metrics/loops/`: estado vivo y trazabilidad del loop por feature
 - `specs/<feature>/`: implementación SDD
 - `.harness-docs/architecture.md`: diseño
@@ -32,6 +34,7 @@ Mapa operativo del repo.
 - Toda feature con `"sdd": true` pasa por `pending -> spec_ready -> aprobación humana -> in_progress -> done`.
 - Dentro de `in_progress`, el trabajo sigue `plan -> execute -> verify -> review -> analyze -> route_back -> done|blocked`.
 - Todo retry requiere `strategy_delta` explícito.
+- Para cambios observables, elige la capa de feedback correcta: `unit`, `contract` o `smoke`; si no aplica test rápido, deja excepción justificada.
 - Antes de declarar `done`, corre la verificación relevante del repo y actualiza README/docs si cambió el uso o comportamiento visible.
 - Si el cambio es release-facing, actualiza `CHANGELOG.md` o deja constancia explícita de por qué no aplica.
 - No inventes estado: actualiza `.harness/progress/current.md`.
@@ -59,10 +62,10 @@ in_progress -> leader(plan) -> implementer(execute) -> verify -> reviewer(review
 5. Si la feature quedó `done`, actualiza backlog activo y archívala en `.harness/feature_history.json`
 6. Si la sesión dejó cambios o una decisión útil de preservar, añade resumen a `.harness/progress/history.md`
 7. Limpia `.harness/progress/current.md`
-8. Conserva `explore_*.md`, `impl_*.md`, `review_*.md`, `spec_*.md`
+8. Conserva `explore_*.md`, `impl_*.md`, `review_*.md`, `spec_*.md`, `head_*.md`
 
 <!-- harness-agents-managed:start -->
-<!-- harness-agents-v5 -->
+<!-- harness-agents-v7 -->
 
 ## Harness Runtime (managed)
 
@@ -84,6 +87,7 @@ Este bloque lo mantiene el arnés. Puedes agregar instrucciones del repo fuera d
 - Toda feature con `"sdd": true` pasa por `pending -> spec_ready -> aprobación humana -> in_progress -> done`.
 - Dentro de `in_progress`, el trabajo sigue `plan -> execute -> verify -> review -> analyze -> route_back -> done|blocked`.
 - Todo retry requiere `strategy_delta` explícito.
+- Toda requirement observable usa la capa de feedback más útil: `unit`, `contract` o `smoke`, o deja excepción justificada.
 - Antes de declarar `done`, corre la verificación relevante del repo y actualiza README/docs si cambió el uso o comportamiento visible.
 - Si el cambio es release-facing, actualiza `CHANGELOG.md` o deja constancia explícita de por qué no aplica.
 - No inventes estado: actualiza `.harness/progress/current.md`.
@@ -95,6 +99,7 @@ Este bloque lo mantiene el arnés. Puedes agregar instrucciones del repo fuera d
 - `.harness/feature_history.json`: contexto histórico
 - `.harness/progress/history.md`: sesiones anteriores
 - `.harness/metrics/loops/`: estado vivo y trazabilidad del loop por feature
+- `.harness/progress/head_<feature>.md`: resumen corto del intento activo
 - `specs/<feature>/`: implementación SDD
 - `CHECKPOINTS.md`: auto-review
 - `.harness/inbox/`: input nuevo
@@ -109,4 +114,5 @@ Este bloque lo mantiene el arnés. Puedes agregar instrucciones del repo fuera d
 5. Si la feature quedó `done`, actualiza backlog activo y archívala en `.harness/feature_history.json`
 6. Si la sesión dejó cambios o decisiones útiles, añade resumen a `.harness/progress/history.md`
 7. Limpia `.harness/progress/current.md`
+8. Conserva `explore_*.md`, `impl_*.md`, `review_*.md`, `spec_*.md`, `head_*.md`
 <!-- harness-agents-managed:end -->

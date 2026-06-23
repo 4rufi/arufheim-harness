@@ -12,7 +12,7 @@ tools:
   - mcp_arufheim-harness_inbox_consume
 ---
 
-<!-- harness-agents-v4 -->
+<!-- harness-agents-v7 -->
 
 # Inbox Reader
 

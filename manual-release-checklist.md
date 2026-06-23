@@ -26,8 +26,11 @@ Al final corre `npm run release:publish-check`.
 
 1. En un repo limpio corre `arufheim-harness setup`.
 2. Corre `arufheim-harness doctor --json`.
-3. Confirma `doctor_summary.status`, `repo_path`, `config_scope`, `binding_status`, `client_verification` y `client_readiness`.
-4. Si el frontend aún no cargó tools MCP, usa `arufheim-harness status --brief --json` como fallback y confirma el mismo `repo_path`.
+3. Confirma `doctor_summary.status`, `repo_path`, `config_scope`, `scaffold_layout`, `runtime_status`, `runtime_status.runtime_artifact.kind`, `runtime_status.runtime_source.kind`, `binding_status`, `client_verification` y `client_readiness`.
+4. En repos consumidores nuevos, `scaffold_layout=thin` debe verse como el camino esperado y recomendado; usa `full` solo si la release tocó materialización local completa.
+5. Para una release publicada, `runtime_status.runtime_artifact.kind` debe quedar en `global_bundle`.
+6. Para una release publicada, `runtime_status.runtime_source.kind` debe quedar en `package_install`, no en `workspace_dev` ni `linked_dev`.
+7. Si el frontend aún no cargó tools MCP, usa `arufheim-harness status --brief --json` como fallback y confirma el mismo `repo_path`.
 
 ## VS Code
 
@@ -39,7 +42,8 @@ Al final corre `npm run release:publish-check`.
 4. Inicia `arufheim-harness` desde el panel MCP.
 5. Fuerza una llamada a `harness_status(mode: "brief_only")`.
 6. Confirma que `repo_path` coincide con el workspace abierto.
-7. `setup` ya debería dejar `client_readiness.vscode.state=verified`; el arranque real confirma el repo observado.
+7. Confirma además que la config global apunta al shim gestionado y no a `npx`.
+8. `setup` ya debería dejar `client_readiness.vscode.state=verified`; el arranque real confirma el repo observado.
 
 ## Claude Desktop
 

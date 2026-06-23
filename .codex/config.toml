@@ -1,4 +1,4 @@
 [mcp_servers.arufheim-harness]
-command = "npx"
-args = ["--yes", "arufheim-harness", "--repo-path", ".", "--client", "codex"]
+command = "node"
+args = [".harness/runtime/launch-global-runtime.mjs", "--repo-path", ".", "--client", "codex"]
 cwd = "."

@@ -19,6 +19,7 @@ import {
   formatHealthBrief,
   getHealthClientLabel,
 } from "./health.js";
+import { refreshActiveHeadSummary } from "./headroom.js";
 import { seedMissingActiveLoop } from "./loop.js";
 import {
   readInitRepoPath,
@@ -30,8 +31,26 @@ import {
   type InitTarget,
   type ManagedGlobalWriteOptions,
 } from "./init.js";
+import { ensureManagedGlobalRuntime } from "./runtime.js";
 
 export async function runRepair(argv: string[] = []): Promise<void> {
+  if (argv.includes("--global-runtime")) {
+    const runtime = await ensureManagedGlobalRuntime();
+    process.stdout.write(
+      [
+        "",
+        "repair summary",
+        "",
+        "  mode: global-runtime",
+        `  runtime: ${runtime.shimPath}`,
+        `  version: ${runtime.version}`,
+        `  installed_at: ${runtime.installedAt}`,
+        "",
+      ].join("\n"),
+    );
+    return;
+  }
+
   if (argv.includes("--global")) {
     const clients = parseGlobalClientSelection(argv);
     const forceManagedGlobal = argv.includes("--force-managed-global");
@@ -46,6 +65,7 @@ export async function runRepair(argv: string[] = []): Promise<void> {
       : { preferredClients: [], targets: [] };
     if (repoContext) {
       await seedMissingActiveLoop(repoContext.repoPath).catch(() => undefined);
+      await refreshActiveHeadSummary(repoContext.repoPath).catch(() => undefined);
     }
     if (repoContext) {
       await primeDeterministicGlobalBindingsForRepo(repoContext.repoPath, clients);
@@ -86,6 +106,7 @@ export async function runRepair(argv: string[] = []): Promise<void> {
   const targets = explicitClients
     ? normalizeLocalTargets(parseLocalClientSelection(argv))
     : deriveLocalTargets(before);
+  const runtime = await ensureManagedGlobalRuntime();
 
   if (targets.length === 0 && !loopSeeded) {
     process.stdout.write(
@@ -95,6 +116,7 @@ export async function runRepair(argv: string[] = []): Promise<void> {
         "",
         `  repo: ${before.repo_path}`,
         "  result: no managed local repairs available",
+        `  scaffold: ${before.scaffold_layout}`,
         `  health: ${formatHealthBrief(before)}`,
         "",
       ].join("\n") + "\n",
@@ -110,10 +132,12 @@ export async function runRepair(argv: string[] = []): Promise<void> {
       repoPath,
       update: true,
       target,
+      ensureManagedRuntime: false,
     });
   }
 
   await seedMissingActiveLoop(repoPath).catch(() => undefined);
+  await refreshActiveHeadSummary(repoPath).catch(() => undefined);
 
   await primeDeterministicRepoVerifications(
     repoPath,
@@ -131,6 +155,8 @@ export async function runRepair(argv: string[] = []): Promise<void> {
       "",
       `  repo: ${after.repo_path}`,
       `  targets: ${targets.length > 0 ? targets.join(", ") : "loop"}`,
+      `  scaffold: ${after.scaffold_layout}`,
+      `  runtime: ${runtime.shimPath}`,
       `  health: ${formatHealthBrief(after)}`,
       `  alerts: ${after.doctor_summary.active_alerts}`,
       `  binding: ${after.binding_status.state}`,
